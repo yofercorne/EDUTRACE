@@ -1,0 +1,19 @@
+fun int main() {
+    var int x;
+    var int y;
+
+    x = 2 + 3 * 4;
+    y = (x + 0) * 1;
+
+    if (2 < 3) {
+        print(y);
+    } else {
+        print(0);
+    }
+
+    while (false) {
+        print(999);
+    }
+
+    return 0;
+}

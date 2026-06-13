@@ -1,0 +1,5 @@
+fun int main() {
+    var char c;
+    c = 65;
+    return 0;
+}

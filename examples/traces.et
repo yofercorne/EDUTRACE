@@ -1,0 +1,23 @@
+fun int main() {
+    var int i;
+    var int total;
+
+    i = 1;
+    total = 0;
+
+    trace variables(i, total);
+    trace branch;
+    trace loop(i, total);
+
+    while (i <= 4) {
+        if (i % 2 == 0) {
+            total = total + i;
+        } else {
+            total = total + 1;
+        }
+        i = i + 1;
+    }
+
+    print(total);
+    return 0;
+}

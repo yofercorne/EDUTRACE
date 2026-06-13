@@ -1,0 +1,5 @@
+fun int main() {
+    let msg = "Hola";
+    msg = 10;
+    return 0;
+}

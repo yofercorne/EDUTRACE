@@ -1,0 +1,6 @@
+fun int main() {
+    var int x;
+    x = 2 + 3 * 4;
+    print(x);
+    return 0;
+}

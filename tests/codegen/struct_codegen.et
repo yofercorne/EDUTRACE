@@ -1,0 +1,13 @@
+struct Student {
+    int age;
+    string name;
+}
+
+fun int main() {
+    var Student s;
+    s.age = 18;
+    s.name = "Ana";
+    print(s.name);
+    print(s.age);
+    return 0;
+}

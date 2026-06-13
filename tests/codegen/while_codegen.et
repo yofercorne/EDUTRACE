@@ -1,0 +1,15 @@
+fun int main() {
+    var int i;
+    var int suma;
+
+    i = 0;
+    suma = 0;
+
+    while (i < 3) {
+        suma = suma + i;
+        i = i + 1;
+    }
+
+    print(suma);
+    return 0;
+}

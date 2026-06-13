@@ -1,0 +1,14 @@
+fun int main() {
+    var int* p;
+
+    p = new int;
+    *p = 50;
+
+    trace memory(p);
+
+    print(*p);
+
+    delete p;
+
+    return 0;
+}

@@ -1,0 +1,8 @@
+fun int main() {
+    let bad = lambda int(int x) {
+        return "no es int";
+    };
+
+    print(bad(5));
+    return 0;
+}

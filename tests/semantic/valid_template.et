@@ -1,0 +1,15 @@
+fun T identity<T>(T x) {
+    return x;
+}
+
+fun int main() {
+    var int a;
+    var string msg;
+    var char c;
+
+    a = identity<int>(10);
+    msg = identity<string>("hola");
+    c = identity<char>('A');
+
+    return 0;
+}

@@ -1,0 +1,9 @@
+fun int main() {
+    var char c;
+    var string s;
+
+    c = 'A';
+    s = "hola";
+    print(c + s);
+    return 0;
+}

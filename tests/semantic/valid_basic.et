@@ -1,0 +1,10 @@
+fun int suma(int a, int b) {
+    return a + b;
+}
+
+fun int main() {
+    var int x;
+    x = suma(2, 3);
+    print(x);
+    return 0;
+}

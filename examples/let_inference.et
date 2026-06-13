@@ -1,0 +1,12 @@
+fun int main() {
+    let x = 10;
+    let y = x + 5;
+    let msg = "Inferencia activa";
+    let flag = y > 10;
+
+    trace variables(x, y, msg, flag);
+
+    print(y);
+    print(msg);
+    return 0;
+}

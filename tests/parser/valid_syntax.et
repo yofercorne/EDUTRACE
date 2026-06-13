@@ -1,0 +1,15 @@
+fun int main() {
+    var int x;
+    var int y;
+
+    x = 4;
+    y = 2;
+
+    if (x > y) {
+        print(x);
+    } else {
+        print(y);
+    }
+
+    return 0;
+}

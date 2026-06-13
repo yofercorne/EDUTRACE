@@ -1,0 +1,41 @@
+benchmark,category,tool,compile_ms,run_ms_avg,output,asm_lines,opt_report
+algebraic_simplification,simplificación algebraica,EduTrace-O0,100.506,6.112,10,49,
+algebraic_simplification,simplificación algebraica,EduTrace-O1,110.321,6.250,10,29,Resumen de optimizaciones | Constant folding: 0 | Simplificaciones algebraicas: 4 | Código muerto eliminado: 0 | If con condición constante simplificados: 0 | While(false) eliminados: 0 | Total: 4
+algebraic_simplification,simplificación algebraica,GCC-O0,139.606,5.523,10,,
+algebraic_simplification,simplificación algebraica,GCC-O1,130.584,6.007,10,,
+constant_folding,constant folding,EduTrace-O0,97.980,5.203,19,46,
+constant_folding,constant folding,EduTrace-O1,108.046,5.256,19,26,Resumen de optimizaciones | Constant folding: 4 | Simplificaciones algebraicas: 0 | Código muerto eliminado: 0 | If con condición constante simplificados: 0 | While(false) eliminados: 0 | Total: 4
+constant_folding,constant folding,GCC-O0,128.198,6.735,19,,
+constant_folding,constant folding,GCC-O1,129.619,6.474,19,,
+constantes,mixto: constant folding + if constante + while(false),EduTrace-O0,105.269,5.321,14,79,
+constantes,mixto: constant folding + if constante + while(false),EduTrace-O1,101.215,7.180,14,29,Resumen de optimizaciones | Constant folding: 3 | Simplificaciones algebraicas: 2 | Código muerto eliminado: 0 | If con condición constante simplificados: 1 | While(false) eliminados: 1 | Total: 7
+constantes,mixto: constant folding + if constante + while(false),GCC-O0,143.799,6.048,14,,
+constantes,mixto: constant folding + if constante + while(false),GCC-O1,145.950,6.112,14,,
+dead_code,eliminación de código muerto,EduTrace-O0,105.298,5.396,1 | 7,51,
+dead_code,eliminación de código muerto,EduTrace-O1,106.871,6.206,1 | 7,36,Resumen de optimizaciones | Constant folding: 0 | Simplificaciones algebraicas: 0 | Código muerto eliminado: 3 | If con condición constante simplificados: 0 | While(false) eliminados: 0 | Total: 3
+dead_code,eliminación de código muerto,GCC-O0,127.811,6.071,1 | 7,,
+dead_code,eliminación de código muerto,GCC-O1,133.718,6.182,1 | 7,,
+factorial_iterativo,control: ciclo dinámico,EduTrace-O0,98.440,5.519,3628800,67,
+factorial_iterativo,control: ciclo dinámico,EduTrace-O1,100.042,5.319,3628800,67,Resumen de optimizaciones | Constant folding: 0 | Simplificaciones algebraicas: 0 | Código muerto eliminado: 0 | If con condición constante simplificados: 0 | While(false) eliminados: 0 | Total: 0
+factorial_iterativo,control: ciclo dinámico,GCC-O0,131.516,5.447,3628800,,
+factorial_iterativo,control: ciclo dinámico,GCC-O1,133.649,5.620,3628800,,
+factorial_recursivo,control: recursión dinámica,EduTrace-O0,95.293,8.561,3628800,65,
+factorial_recursivo,control: recursión dinámica,EduTrace-O1,101.937,5.789,3628800,65,Resumen de optimizaciones | Constant folding: 0 | Simplificaciones algebraicas: 0 | Código muerto eliminado: 0 | If con condición constante simplificados: 0 | While(false) eliminados: 0 | Total: 0
+factorial_recursivo,control: recursión dinámica,GCC-O0,129.320,6.332,3628800,,
+factorial_recursivo,control: recursión dinámica,GCC-O1,141.622,6.232,3628800,,
+fibonacci,control: recursión dinámica,EduTrace-O0,120.743,7.145,55,73,
+fibonacci,control: recursión dinámica,EduTrace-O1,108.770,5.830,55,73,Resumen de optimizaciones | Constant folding: 0 | Simplificaciones algebraicas: 0 | Código muerto eliminado: 0 | If con condición constante simplificados: 0 | While(false) eliminados: 0 | Total: 0
+fibonacci,control: recursión dinámica,GCC-O0,142.461,6.184,55,,
+fibonacci,control: recursión dinámica,GCC-O1,133.419,6.023,55,,
+if_constant,if con condición constante,EduTrace-O0,94.862,5.911,222,41,
+if_constant,if con condición constante,EduTrace-O1,102.635,5.721,222,22,Resumen de optimizaciones | Constant folding: 1 | Simplificaciones algebraicas: 0 | Código muerto eliminado: 0 | If con condición constante simplificados: 1 | While(false) eliminados: 0 | Total: 2
+if_constant,if con condición constante,GCC-O0,138.459,8.464,222,,
+if_constant,if con condición constante,GCC-O1,135.581,7.043,222,,
+mixed_optimization,mixto: folding + álgebra + if + while + dead code,EduTrace-O0,104.724,6.879,14,76,
+mixed_optimization,mixto: folding + álgebra + if + while + dead code,EduTrace-O1,99.436,5.840,14,29,Resumen de optimizaciones | Constant folding: 2 | Simplificaciones algebraicas: 2 | Código muerto eliminado: 1 | If con condición constante simplificados: 1 | While(false) eliminados: 1 | Total: 7
+mixed_optimization,mixto: folding + álgebra + if + while + dead code,GCC-O0,141.487,5.242,14,,
+mixed_optimization,mixto: folding + álgebra + if + while + dead code,GCC-O1,128.844,5.831,14,,
+while_false,eliminación de while(false),EduTrace-O0,97.981,5.930,5,44,
+while_false,eliminación de while(false),EduTrace-O1,95.482,6.759,5,26,Resumen de optimizaciones | Constant folding: 0 | Simplificaciones algebraicas: 0 | Código muerto eliminado: 0 | If con condición constante simplificados: 0 | While(false) eliminados: 1 | Total: 1
+while_false,eliminación de while(false),GCC-O0,130.179,6.422,5,,
+while_false,eliminación de while(false),GCC-O1,131.486,6.466,5,,

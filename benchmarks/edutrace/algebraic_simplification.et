@@ -1,0 +1,8 @@
+fun int main() {
+    var int x;
+    var int y;
+    x = 10;
+    y = ((x + 0) * 1) + (0 * x);
+    print(y);
+    return 0;
+}

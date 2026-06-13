@@ -1,0 +1,9 @@
+fun int main() {
+    let base = 10;
+    let addBase = lambda int(int x) {
+        return x + base;
+    };
+
+    print(addBase(5));
+    return 0;
+}

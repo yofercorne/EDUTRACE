@@ -1,0 +1,15 @@
+fun int inc(int x) {
+    return x + 1;
+}
+
+fun int main() {
+    var int a;
+    var int r;
+
+    a = 4;
+    trace stack;
+    r = inc(a);
+
+    print(r);
+    return 0;
+}

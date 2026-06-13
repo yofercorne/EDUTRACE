@@ -1,0 +1,5 @@
+fun int main() {
+    var string msg;
+    msg = 10;
+    return 0;
+}

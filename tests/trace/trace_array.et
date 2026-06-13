@@ -1,0 +1,12 @@
+fun int main() {
+    var int nums[3];
+
+    trace array(nums);
+
+    nums[0] = 5;
+    nums[1] = 8;
+    nums[2] = nums[0] + nums[1];
+
+    print(nums[2]);
+    return 0;
+}

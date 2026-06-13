@@ -1,0 +1,9 @@
+fun int main() {
+    var int x;
+    var int* p;
+    x = 10;
+    p = &x;
+    *p = 20;
+    print(*p);
+    return 0;
+}

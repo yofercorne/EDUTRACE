@@ -1,0 +1,9 @@
+fun T identity<T>(T x) {
+    return x;
+}
+
+fun int main() {
+    trace stack;
+    print(identity<int>(7));
+    return 0;
+}

@@ -1,0 +1,6 @@
+fun int main() {
+    var string msg;
+    msg = "Hola EduTrace";
+    print(msg);
+    return 0;
+}

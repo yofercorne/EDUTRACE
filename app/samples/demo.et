@@ -1,0 +1,21 @@
+fun int main() {
+    let x = 10;
+    let y = x + 5;
+    var int nums[3];
+
+    nums[0] = x;
+    nums[1] = y;
+    nums[2] = nums[0] + nums[1];
+
+    trace variables(x, y);
+    trace array(nums);
+
+    if (nums[2] > 20) {
+        print("mayor a 20");
+    } else {
+        print("menor o igual a 20");
+    }
+
+    print(nums[2]);
+    return 0;
+}

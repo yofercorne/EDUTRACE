@@ -1,0 +1,4 @@
+fun int main() {
+    var Student s;
+    return 0;
+}

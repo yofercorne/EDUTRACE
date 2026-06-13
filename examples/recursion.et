@@ -1,0 +1,14 @@
+fun int factorial(int n) {
+    trace recursion;
+
+    if (n == 0) {
+        return 1;
+    }
+
+    return n * factorial(n - 1);
+}
+
+fun int main() {
+    print(factorial(3));
+    return 0;
+}

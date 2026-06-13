@@ -1,0 +1,15 @@
+fun int main() {
+    var int x;
+    var int* p;
+
+    x = 10;
+    p = &x;
+
+    trace memory(x, p);
+
+    *p = 20;
+
+    print(x);
+    print(*p);
+    return 0;
+}

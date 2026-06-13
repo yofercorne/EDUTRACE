@@ -1,0 +1,14 @@
+fun int main() {
+    var int edad;
+    edad = 17;
+
+    trace branch;
+
+    if (edad >= 18) {
+        print("mayor");
+    } else {
+        print("menor");
+    }
+
+    return 0;
+}

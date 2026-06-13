@@ -1,0 +1,12 @@
+fun int helper() {
+    print(1);
+    return 7;
+    print(999);
+    print(888);
+}
+
+fun int main() {
+    print(helper());
+    return 0;
+    print(123);
+}

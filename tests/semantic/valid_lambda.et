@@ -1,0 +1,8 @@
+fun int main() {
+    let inc = lambda int(int x) {
+        return x + 1;
+    };
+
+    print(inc(5));
+    return 0;
+}

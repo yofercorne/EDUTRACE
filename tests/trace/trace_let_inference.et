@@ -1,0 +1,11 @@
+fun int main() {
+    let x = 10;
+    let y = x + 5;
+    let msg = "Hola let";
+
+    trace variables(x, y, msg);
+
+    print(y);
+    print(msg);
+    return 0;
+}

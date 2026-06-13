@@ -1,0 +1,8 @@
+fun T broken<T>(T x) {
+    return 1;
+}
+
+fun int main() {
+    print(broken<int>(10));
+    return 0;
+}

@@ -1,0 +1,10 @@
+fun int main() {
+    var int x;
+    x = 5;
+
+    if (x) {
+        print(x);
+    }
+
+    return 0;
+}

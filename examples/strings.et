@@ -1,0 +1,14 @@
+fun int main() {
+    var string msg;
+    var string course;
+
+    msg = "Hola EduTrace";
+    course = "Programacion paso a paso";
+
+    trace variables(msg, course);
+
+    print(msg);
+    print(course);
+
+    return 0;
+}

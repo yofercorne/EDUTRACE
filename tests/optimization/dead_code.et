@@ -1,0 +1,10 @@
+fun int foo() {
+    return 5;
+    print(999);
+    return 0;
+}
+
+fun int main() {
+    print(foo());
+    return 0;
+}

@@ -1,0 +1,11 @@
+fun int main() {
+    var int* p;
+
+    trace memory(p);
+
+    p = new int;
+    *p = 50;
+    delete p;
+
+    return 0;
+}

@@ -1,0 +1,13 @@
+fun int main() {
+    var char c;
+    var int x;
+
+    c = 'A';
+    x = c + 1;
+
+    trace variables(c, x);
+
+    print(c);
+    print(x);
+    return 0;
+}

@@ -1,0 +1,5 @@
+fun int main() {
+    var int mat[2][3];
+    mat[2][0] = 10;
+    return 0;
+}

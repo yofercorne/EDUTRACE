@@ -1,0 +1,11 @@
+fun int main() {
+    var int x;
+    var bool ok;
+
+    x = 10;
+    ok = true;
+
+    trace variables(x, ok);
+    print(x);
+    return 0;
+}

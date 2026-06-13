@@ -1,0 +1,8 @@
+fun int main() {
+    if (2 > 3) {
+        print(111);
+    } else {
+        print(222);
+    }
+    return 0;
+}

@@ -1,0 +1,13 @@
+fun int main() {
+    var int x;
+    var int y;
+
+    trace variables(x, y);
+
+    x = 5;
+    y = x + 3;
+    x = y * 2;
+
+    print(x);
+    return 0;
+}

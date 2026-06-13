@@ -1,0 +1,5 @@
+fun int main() {
+    var int x;
+    *x = 20;
+    return 0;
+}

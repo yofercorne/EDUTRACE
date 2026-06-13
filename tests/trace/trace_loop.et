@@ -1,0 +1,16 @@
+fun int main() {
+    var int i;
+    var int total;
+
+    i = 0;
+    total = 0;
+
+    trace loop(i, total);
+
+    while (i < 2) {
+        total = total + i;
+        i = i + 1;
+    }
+
+    return 0;
+}

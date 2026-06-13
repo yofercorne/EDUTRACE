@@ -1,0 +1,10 @@
+fun T identity<T>(T x) {
+    return x;
+}
+
+fun int main() {
+    print(identity<int>(10));
+    print(identity<string>("template"));
+    print(identity<char>('Z'));
+    return 0;
+}

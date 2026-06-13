@@ -1,0 +1,5 @@
+fun int main() {
+    var int nums[3];
+    nums[true] = 1;
+    return 0;
+}

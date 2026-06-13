@@ -1,0 +1,14 @@
+fun int factorial(int n) {
+    var int r;
+    r = 1;
+    while (n > 1) {
+        r = r * n;
+        n = n - 1;
+    }
+    return r;
+}
+
+fun int main() {
+    print(factorial(10));
+    return 0;
+}

@@ -1,0 +1,8 @@
+fun T identity<T>(T x) {
+    return x;
+}
+
+fun int main() {
+    print(identity<int>("hola"));
+    return 0;
+}

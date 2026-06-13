@@ -1,0 +1,16 @@
+fun int cuadrado(int x) {
+    return x * x;
+}
+
+fun int main() {
+    var int a;
+    var int r;
+
+    a = 4;
+
+    trace stack;
+    r = cuadrado(a);
+
+    print(r);
+    return 0;
+}

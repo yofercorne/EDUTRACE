@@ -1,0 +1,4 @@
+fun int main() {
+    trace variables(x);
+    return 0;
+}

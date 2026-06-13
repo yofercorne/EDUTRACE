@@ -1,0 +1,8 @@
+fun int main() {
+    var int x;
+    var int* p;
+    x = 10;
+    p = &x;
+    *p = "hola";
+    return 0;
+}
