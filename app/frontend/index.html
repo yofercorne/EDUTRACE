@@ -5,368 +5,299 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>EduTrace — Compilador Educativo</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/frontend/styles.css" />
-
-  <!-- Compatibilidad mínima con app.js actual. Puede moverse a styles.css luego. -->
-  <style>
-    :root {
-      --bg: #0d1117;
-      --panel: #161b22;
-      --panel2: #0f1623;
-      --border: #30363d;
-      --text: #e6edf3;
-      --muted: #8b949e;
-      --blue: #58a6ff;
-      --green: #3fb950;
-      --red: #f85149;
-      --yellow: #d29922;
-    }
-
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: Inter, system-ui, sans-serif;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    button { font-family: inherit; cursor: pointer; }
-    pre, textarea { font-family: "JetBrains Mono", Consolas, monospace; }
-
-    .topbar {
-      height: 64px;
-      display: flex;
-      align-items: center;
-      gap: 18px;
-      padding: 0 16px;
-      border-bottom: 1px solid var(--border);
-      background: #010409;
-    }
-
-    .topbar-brand { display: flex; align-items: center; gap: 10px; min-width: 170px; }
-    .brand-icon { width: 32px; height: 32px; display:grid; place-items:center; border:1px solid var(--border); border-radius:8px; }
-    .brand-name { font-weight: 700; font-size: 18px; }
-    .brand-tag { font-size: 12px; color: var(--muted); border:1px solid var(--border); padding:2px 6px; border-radius:999px; }
-
-    .pipeline-bar { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; }
-    .pipeline-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .12em; }
-    .pipeline-steps { display:flex; align-items:center; gap:6px; overflow:auto; }
-    .pipe-arrow { color: #484f58; }
-
-    .ps {
-      display:flex; align-items:center; gap:6px;
-      border:1px solid var(--border); background:var(--panel); color:var(--text);
-      border-radius:10px; padding:7px 9px; white-space:nowrap;
-    }
-    .ps:hover, .ps.active { border-color: var(--blue); }
-    .ps.s-ok { border-color: var(--green); box-shadow: 0 0 0 1px rgba(63,185,80,.15) inset; }
-    .ps.s-err { border-color: var(--red); box-shadow: 0 0 0 1px rgba(248,81,73,.15) inset; }
-    .ps.s-spin { border-color: var(--yellow); }
-    .pipe-num { color:var(--muted); font-size:11px; }
-    .pipe-dot { width:7px; height:7px; border-radius:50%; background:#484f58; }
-    .ps.s-ok .pipe-dot { background:var(--green); }
-    .ps.s-err .pipe-dot { background:var(--red); }
-    .ps.s-spin .pipe-dot { background:var(--yellow); animation:pulse 1s infinite; }
-    @keyframes pulse { 50% { opacity:.35 } }
-
-    .topbar-actions { display:flex; align-items:center; gap:10px; }
-    .health-dot, .health-indicator { width:10px; height:10px; border-radius:50%; background:#484f58; display:inline-block; }
-    .health-dot.ok, .health-indicator.ok { background:var(--green); }
-    .health-dot.fail, .health-indicator.fail { background:var(--red); }
-    .btn-sample, .btn-run, .ctrl-btn, .btn-quick {
-      border:1px solid var(--border); border-radius:10px; color:var(--text); background:var(--panel); padding:8px 10px;
-    }
-    .btn-run { background:#238636; border-color:#2ea043; font-weight:600; display:flex; gap:6px; align-items:center; }
-    .btn-run.busy { opacity:.65; }
-
-    .workspace { flex:1; display:flex; min-height:0; }
-    #paneEditor, .editor-panel { width: 45%; min-width: 280px; display:flex; flex-direction:column; border-right:1px solid var(--border); background:var(--panel); }
-    .panel-header { height:48px; display:flex; align-items:center; justify-content:space-between; padding:0 12px; border-bottom:1px solid var(--border); }
-    .panel-header-left, .panel-header-right { display:flex; align-items:center; gap:8px; }
-    .file-name { color:var(--text); font-weight:600; }
-    .lang-badge { font-size:12px; color:var(--blue); border:1px solid rgba(88,166,255,.35); border-radius:999px; padding:2px 8px; }
-
-    .editor-wrap { flex:1; min-height:0; display:flex; background:#0d1117; }
-    #lineNums { min-width:48px; padding:14px 10px; text-align:right; color:var(--muted); border-right:1px solid var(--border); user-select:none; white-space:pre; overflow:hidden; line-height:1.6; }
-    #codeEditor { flex:1; border:0; outline:0; resize:none; background:#0d1117; color:var(--text); padding:14px; font-size:14px; line-height:1.6; }
-    .editor-footer { height:30px; border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; padding:0 12px; color:var(--muted); font-size:12px; }
-    #resizer, .resize-handle { width:6px; cursor:col-resize; background:#010409; border-left:1px solid #111; border-right:1px solid #111; }
-    #resizer.drag { background:var(--blue); }
-
-    .output-panel { flex:1; min-width:0; display:flex; flex-direction:column; background:#0d1117; }
-    .tabs, .output-tabs { display:flex; gap:4px; overflow:auto; align-items:center; }
-    .tab {
-      border:0; background:transparent; color:var(--muted); padding:8px 10px; border-radius:8px; display:flex; gap:6px; align-items:center;
-    }
-    .tab.active { background:var(--panel2); color:var(--text); }
-    .err-badge, .error-badge { background:var(--red); color:#fff; min-width:18px; height:18px; border-radius:999px; display:inline-grid; place-items:center; font-size:11px; margin-left:4px; }
-    .output-controls { display:flex; gap:6px; }
-
-    .panels, .tab-contents { flex:1; min-height:0; position:relative; }
-    .panel { display:none; height:100%; flex-direction:column; min-height:0; }
-    .panel.active { display:flex; }
-
-    .empty-state, .output-state.empty {
-      height:100%; display:grid; place-items:center; text-align:center; color:var(--muted); padding:24px;
-    }
-    .empty-icon { font-size:34px; color:var(--blue); margin-bottom:8px; }
-    .result { height:100%; display:flex; flex-direction:column; min-height:0; }
-    .hidden { display:none !important; }
-    .result-header { min-height:42px; display:flex; align-items:center; gap:10px; padding:0 14px; border-bottom:1px solid var(--border); color:var(--muted); }
-    .tag { padding:2px 8px; border-radius:999px; font-size:12px; font-weight:700; }
-    .tag-ok { background:rgba(63,185,80,.14); color:var(--green); }
-    .tag-err { background:rgba(248,81,73,.14); color:var(--red); }
-    .ms-label { margin-left:auto; color:var(--muted); font-size:12px; }
-
-    .code-pre, .code-out { flex:1; margin:0; overflow:auto; padding:16px; background:#0d1117; color:var(--text); font-size:13px; line-height:1.55; }
-    #tok-chips { padding:16px; display:flex; flex-wrap:wrap; gap:8px; align-content:flex-start; overflow:auto; }
-    .tk { border:1px solid var(--border); background:var(--panel); padding:6px 8px; border-radius:8px; display:inline-flex; gap:7px; align-items:center; font-size:12px; }
-    .tk-lex { color:var(--muted); font-size:11px; }
-    .tk-kw, .tk-type { border-color:rgba(88,166,255,.4); }
-    .tk-edu { border-color:rgba(63,185,80,.4); }
-    .tk-num { border-color:rgba(210,153,34,.5); }
-    .tk-str { border-color:rgba(219,109,177,.45); }
-
-    #trace-view, #opt-view, #err-list { flex:1; min-height:0; overflow:auto; padding:16px; }
-    .te { display:flex; gap:10px; padding:8px 10px; border-bottom:1px solid rgba(48,54,61,.4); }
-    .te-icon { width:22px; color:var(--muted); }
-    .val { color:var(--yellow); }
-    .arr { color:var(--blue); }
-    .ok { color:var(--green); }
-    .cond { color:#a5d6ff; }
-
-    .opt-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:14px; }
-    .opt-stat-item, .opt-item, .err-item { border:1px solid var(--border); background:var(--panel); border-radius:10px; padding:12px; }
-    .opt-stat-label, .err-src { display:block; color:var(--muted); font-size:12px; margin-bottom:4px; }
-    .opt-stat-val { font-size:22px; font-weight:700; }
-    .green { color:var(--green); } .blue { color:var(--blue); }
-    .opt-item { margin-bottom:8px; display:flex; gap:10px; align-items:center; }
-    .opt-badge { font-size:12px; padding:3px 8px; border-radius:999px; background:#1f6feb33; color:var(--blue); white-space:nowrap; }
-
-    .status-bar { height:32px; display:flex; align-items:center; justify-content:space-between; padding:0 12px; border-top:1px solid var(--border); color:var(--muted); font-size:12px; }
-    .status-left { display:flex; align-items:center; gap:8px; }
-    .sb-dot { width:8px; height:8px; border-radius:50%; background:#484f58; display:inline-block; }
-    .sb-dot.ok { background:var(--green); } .sb-dot.err { background:var(--red); } .sb-dot.spin { background:var(--yellow); animation:pulse 1s infinite; }
-    .sb-msg.ok { color:var(--green); } .sb-msg.err { color:var(--red); }
-
-    .ak-blk { color:#a5d6ff; } .ak-fn { color:#d2a8ff; } .ak-decl { color:#7ee787; }
-    .ak-stmt { color:#ffa657; } .ak-expr { color:#79c0ff; } .ak-id { color:#e6edf3; }
-    .ak-str { color:#a5d6ff; } .ak-op { color:#ff7b72; } .ak-tree { color:#484f58; }
-    .ad { color:#d2a8ff; } .al { color:#7ee787; } .ao { color:#79c0ff; }
-    .ar { color:#ffa657; } .ai { color:#a5d6ff; } .am { color:#e6edf3; } .ac { color:#8b949e; }
-  </style>
 </head>
 <body>
-  <header class="topbar">
-    <div class="topbar-brand">
-      <div class="brand-icon" aria-hidden="true">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <path d="M3 4l4 6-4 6h2l3-4.5L11 16h2L9 10l4-6H11L8 8.5 5 4H3z" fill="#58a6ff"/>
-          <rect x="13" y="4" width="2" height="12" rx="1" fill="#3fb950"/>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="topbar-brand">
+    <div class="brand-icon">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <path d="M2 3.5l3.5 5.5-3.5 5.5h2l2.5-4 2.5 4h2L7 9l4-5.5H9L7 7 5 3.5H2z" fill="#58a6ff"/>
+        <rect x="12" y="3.5" width="2" height="11" rx="1" fill="#3fb950"/>
+      </svg>
+    </div>
+    <span class="brand-name">EduTrace</span>
+    <span class="brand-ver">v1</span>
+  </div>
+
+  <!-- Pipeline: indicador visual SOLO (no son botones de acción) -->
+  <div class="pipeline-status" id="pipelineStatus">
+    <div class="ps-item" id="ps-check">
+      <i class="ps-dot"></i><span>Semántica</span>
+    </div>
+    <span class="ps-arrow">›</span>
+    <div class="ps-item" id="ps-tokens">
+      <i class="ps-dot"></i><span>Tokens</span>
+    </div>
+    <span class="ps-arrow">›</span>
+    <div class="ps-item" id="ps-ast">
+      <i class="ps-dot"></i><span>AST</span>
+    </div>
+    <span class="ps-arrow">›</span>
+    <div class="ps-item" id="ps-trace">
+      <i class="ps-dot"></i><span>Trace</span>
+    </div>
+    <span class="ps-arrow">›</span>
+    <div class="ps-item" id="ps-opt">
+      <i class="ps-dot"></i><span>Opt</span>
+    </div>
+    <span class="ps-arrow">›</span>
+    <div class="ps-item" id="ps-asm">
+      <i class="ps-dot"></i><span>ASM</span>
+    </div>
+    <span class="ps-arrow">›</span>
+    <div class="ps-item" id="ps-run">
+      <i class="ps-dot"></i><span>Run</span>
+    </div>
+  </div>
+
+  <div class="topbar-end">
+    <span class="health-dot" id="healthDot" title="Estado del servidor"></span>
+    <button class="btn-sample" id="loadSampleBtn">Cargar ejemplo</button>
+    <button class="btn-run-main" id="mainRunBtn">
+      <svg width="11" height="11" viewBox="0 0 11 11"><path d="M2 1l8 4.5L2 10V1z" fill="currentColor"/></svg>
+      Ejecutar
+    </button>
+  </div>
+</header>
+
+<!-- WORKSPACE -->
+<div class="workspace">
+
+  <!-- LEFT: EDITOR -->
+  <div class="pane pane-editor" id="paneEditor">
+    <div class="pane-bar">
+      <span class="pane-file">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <rect x="1" y="1" width="7" height="10" rx="1" stroke="#58a6ff" stroke-width="1.1"/>
+          <path d="M8 1l3 3v6a1 1 0 01-1 1H8V4L5 1h3z" stroke="#58a6ff" stroke-width="1.1" fill="none"/>
         </svg>
+        programa.et
+      </span>
+      <span class="lang-tag">EduTrace</span>
+    </div>
+    <div class="editor-body">
+      <div class="line-nums" id="lineNums" aria-hidden="true"></div>
+      <textarea id="codeEditor" spellcheck="false" autocomplete="off"
+                autocorrect="off" autocapitalize="off"></textarea>
+    </div>
+    <div class="editor-foot">
+      <span id="cursorPos">Línea 1, Col 1</span>
+      <span id="charCount">0 chars</span>
+    </div>
+  </div>
+
+  <!-- RESIZE -->
+  <div class="resizer" id="resizer"></div>
+
+  <!-- RIGHT: OUTPUT -->
+  <div class="pane pane-out" id="paneOut">
+
+    <!-- TABS — estos SÍ son los botones de acción -->
+    <div class="out-bar">
+      <div class="tabs" id="tabs">
+        <button class="tab" data-tab="check" data-action="check" data-label="Análisis semántico">
+          <i class="ti ti-check"></i>Semántica
+        </button>
+        <button class="tab" data-tab="tokens" data-action="tokens" data-label="Análisis léxico">
+          <i class="ti ti-tok"></i>Tokens
+        </button>
+        <button class="tab" data-tab="ast" data-action="ast" data-label="Árbol de sintaxis abstracta">
+          <i class="ti ti-ast"></i>AST
+        </button>
+        <button class="tab" data-tab="trace" data-action="trace" data-label="Traza educativa de ejecución">
+          <i class="ti ti-trace"></i>Trace
+        </button>
+        <button class="tab" data-tab="opt" data-action="opt_report" data-label="Reporte de optimizaciones aplicadas">
+          <i class="ti ti-opt"></i>Optimización
+        </button>
+        <button class="tab" data-tab="asm" data-action="asm" data-label="Código ensamblador x86 generado">
+          <i class="ti ti-asm"></i>ASM x86
+        </button>
+        <button class="tab tab-run active" data-tab="run" data-action="run" data-label="Salida real del programa compilado">
+          <svg width="9" height="9" viewBox="0 0 9 9"><path d="M1 1l7 3.5L1 8V1z" fill="currentColor"/></svg>
+          Ejecutar
+        </button>
+        <button class="tab" data-tab="err" data-no-action>
+          <i class="ti ti-err"></i>Errores
+          <span class="err-badge" id="errBadge" hidden>0</span>
+        </button>
       </div>
-      <span class="brand-name">EduTrace</span>
-      <span class="brand-tag">app</span>
+      <div class="out-ctrl">
+        <button class="ic-btn" id="btnClear" title="Limpiar todo">✕</button>
+        <button class="ic-btn" id="btnCopy"  title="Copiar panel activo">⎘</button>
+      </div>
     </div>
 
-    <div class="pipeline-bar">
-      <div class="pipeline-label">pipeline</div>
-      <div class="pipeline-steps">
-        <button class="ps" data-action="check" data-tab="check" title="Análisis semántico">
-          <span class="pipe-num">01</span><span class="pipe-name">Semántica</span><span class="pipe-dot"></span>
-        </button>
-        <div class="pipe-arrow">›</div>
-        <button class="ps" data-action="tokens" data-tab="tokens" title="Análisis léxico">
-          <span class="pipe-num">02</span><span class="pipe-name">Tokens</span><span class="pipe-dot"></span>
-        </button>
-        <div class="pipe-arrow">›</div>
-        <button class="ps" data-action="ast" data-tab="ast" title="AST">
-          <span class="pipe-num">03</span><span class="pipe-name">AST</span><span class="pipe-dot"></span>
-        </button>
-        <div class="pipe-arrow">›</div>
-        <button class="ps" data-action="trace" data-tab="trace" title="Trace educativo">
-          <span class="pipe-num">04</span><span class="pipe-name">Trace</span><span class="pipe-dot"></span>
-        </button>
-        <div class="pipe-arrow">›</div>
-        <button class="ps" data-action="opt_report" data-tab="opt" title="Reporte de optimización">
-          <span class="pipe-num">05</span><span class="pipe-name">Opt</span><span class="pipe-dot"></span>
-        </button>
-        <div class="pipe-arrow">›</div>
-        <button class="ps" data-action="asm" data-tab="asm" title="ASM optimizado">
-          <span class="pipe-num">06</span><span class="pipe-name">ASM</span><span class="pipe-dot"></span>
-        </button>
-        <div class="pipe-arrow">›</div>
-        <button class="ps" data-action="asm_no_opt" data-tab="noopt" title="ASM sin optimización">
-          <span class="pipe-num">07</span><span class="pipe-name">ASM-O0</span><span class="pipe-dot"></span>
-        </button>
-        <div class="pipe-arrow">›</div>
-        <button class="ps" data-action="run" data-tab="run" title="Ejecución">
-          <span class="pipe-num">08</span><span class="pipe-name">Run</span><span class="pipe-dot"></span>
-        </button>
+    <!-- TAB HINT BAR -->
+    <div class="tab-hint" id="tabHint"></div>
+
+    <!-- PANELS -->
+    <div class="panels">
+
+      <!-- SEMÁNTICA -->
+      <div class="panel" id="panel-check">
+        <div class="empty-state" id="es-check">
+          <div class="es-icon" style="color:var(--c-ok)">✓</div>
+          <p><strong>Semántica</strong> — verifica tipos, declaraciones y coherencia del programa.</p>
+          <button class="qs-btn" onclick="runAction('check','check')">Verificar semántica</button>
+        </div>
+        <div class="result hidden" id="res-check">
+          <div class="res-hdr" id="hdr-check"></div>
+          <pre class="code-pre" id="pre-check"></pre>
+        </div>
       </div>
+
+      <!-- TOKENS -->
+      <div class="panel" id="panel-tokens">
+        <div class="empty-state" id="es-tokens">
+          <div class="es-icon" style="color:var(--c-blue)">{}</div>
+          <p><strong>Tokens</strong> — resultado del análisis léxico: cada símbolo reconocido.</p>
+          <button class="qs-btn" onclick="runAction('tokens','tokens')">Tokenizar</button>
+        </div>
+        <div class="result hidden" id="res-tokens">
+          <div class="res-hdr" id="hdr-tokens">
+            <div class="tok-controls">
+              <button class="view-toggle active" id="togChips" onclick="setTokenView('chips')">Chips</button>
+              <button class="view-toggle" id="togTable" onclick="setTokenView('table')">Tabla</button>
+            </div>
+          </div>
+          <!-- chips view -->
+          <div class="token-chips-view" id="tok-chips"></div>
+          <!-- table view -->
+          <div class="token-table-wrap hidden" id="tok-table-wrap">
+            <table class="token-table" id="tok-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Tipo</th>
+                  <th>Lexema</th>
+                  <th>Línea</th>
+                  <th>Col</th>
+                  <th>Categoría</th>
+                </tr>
+              </thead>
+              <tbody id="tok-tbody"></tbody>
+            </table>
+          </div>
+          <pre class="code-pre hidden" id="pre-tokens"></pre>
+        </div>
+      </div>
+
+      <!-- AST -->
+      <div class="panel" id="panel-ast">
+        <div class="empty-state" id="es-ast">
+          <div class="es-icon" style="color:var(--c-purple)">⌥</div>
+          <p><strong>AST</strong> — árbol de sintaxis abstracta: la estructura jerárquica del programa.</p>
+          <button class="qs-btn" onclick="runAction('ast','ast')">Generar AST</button>
+        </div>
+        <div class="result hidden" id="res-ast">
+          <div class="res-hdr" id="hdr-ast">
+            <div class="ast-controls">
+              <button class="view-toggle active" id="togAstTree" onclick="setAstView('tree')">Árbol</button>
+              <button class="view-toggle" id="togAstRaw"  onclick="setAstView('raw')">Texto</button>
+              <button class="ic-btn" id="btnAstExpandAll"  title="Expandir todo"  onclick="astExpandAll(true)">+</button>
+              <button class="ic-btn" id="btnAstCollapseAll" title="Colapsar todo" onclick="astExpandAll(false)">−</button>
+            </div>
+          </div>
+          <div class="ast-tree-wrap" id="ast-tree-wrap">
+            <div class="ast-tree" id="ast-tree"></div>
+          </div>
+          <pre class="code-pre hidden" id="pre-ast"></pre>
+        </div>
+      </div>
+
+      <!-- TRACE -->
+      <div class="panel" id="panel-trace">
+        <div class="empty-state" id="es-trace">
+          <div class="es-icon" style="color:var(--c-purple)">◎</div>
+          <p><strong>Trace</strong> — explicación educativa paso a paso de lo que hace el programa.</p>
+          <button class="qs-btn" onclick="runAction('trace','trace')">Trazar</button>
+        </div>
+        <div class="result hidden" id="res-trace">
+          <div class="res-hdr" id="hdr-trace"></div>
+          <div class="trace-view" id="trace-view"></div>
+        </div>
+      </div>
+
+      <!-- OPTIMIZACIÓN -->
+      <div class="panel" id="panel-opt">
+        <div class="empty-state" id="es-opt">
+          <div class="es-icon" style="color:var(--c-warn)">⚡</div>
+          <p><strong>Optimización</strong> — transfor­maciones que el compilador aplica para mejorar el código generado.</p>
+          <button class="qs-btn" onclick="runOptFull()">Analizar optimizaciones</button>
+        </div>
+        <div class="result hidden" id="res-opt">
+          <div class="res-hdr" id="hdr-opt"></div>
+          <div class="opt-view" id="opt-view"></div>
+        </div>
+      </div>
+
+      <!-- ASM -->
+      <div class="panel" id="panel-asm">
+        <div class="empty-state" id="es-asm">
+          <div class="es-icon" style="color:var(--c-asm)">»</div>
+          <p><strong>ASM x86</strong> — código ensamblador generado por el compilador.</p>
+          <button class="qs-btn" onclick="runAction('asm','asm')">Generar ASM</button>
+        </div>
+        <div class="result hidden" id="res-asm">
+          <div class="res-hdr" id="hdr-asm"></div>
+          <pre class="code-pre asm-pre" id="pre-asm"></pre>
+        </div>
+      </div>
+
+      <!-- RUN OUTPUT -->
+      <div class="panel active" id="panel-run">
+        <div class="empty-state" id="es-run">
+          <div class="es-icon" style="color:var(--c-ok)">▶</div>
+          <p><strong>Ejecutar</strong> — compila el programa y muestra su salida real.</p>
+          <button class="qs-btn qs-run" onclick="runAction('run','run')">
+            <svg width="10" height="10" viewBox="0 0 10 10"><path d="M1 1l8 4L1 9V1z" fill="currentColor"/></svg>
+            Ejecutar programa
+          </button>
+        </div>
+        <div class="result hidden" id="res-run">
+          <div class="res-hdr" id="hdr-run"></div>
+          <div class="terminal">
+            <div class="term-bar">
+              <span class="td red"></span>
+              <span class="td yellow"></span>
+              <span class="td green"></span>
+              <span class="term-title">stdout — programa.et</span>
+            </div>
+            <pre class="code-pre term-out" id="pre-run"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- ERRORES -->
+      <div class="panel" id="panel-err">
+        <div class="empty-state" id="es-err">
+          <div class="es-icon" style="color:var(--c-ok)">✓</div>
+          <p>No hay errores registrados.</p>
+        </div>
+        <div class="result hidden" id="res-err">
+          <div class="err-list" id="err-list"></div>
+        </div>
+      </div>
+
+    </div><!-- /panels -->
+
+    <!-- STATUS BAR -->
+    <div class="status-bar">
+      <div class="sb-left">
+        <span class="sb-dot" id="sbDot"></span>
+        <span class="sb-msg" id="sbMsg">Listo — selecciona una pestaña para ejecutar</span>
+      </div>
+      <span class="sb-elapsed" id="sbElapsed"></span>
     </div>
 
-    <div class="topbar-actions">
-      <span class="health-dot" id="healthDot" title="Estado del servidor"></span>
-      <button class="btn-sample" id="loadSampleBtn">Cargar ejemplo</button>
-      <button class="btn-run" id="mainRunBtn" type="button">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><path d="M3 2l9 5-9 5V2z"/></svg>
-        Ejecutar
-      </button>
-    </div>
-  </header>
+  </div><!-- /pane-out -->
+</div><!-- /workspace -->
 
-  <main class="workspace">
-    <section id="paneEditor" class="editor-panel">
-      <div class="panel-header">
-        <div class="panel-header-left">
-          <span class="file-name">programa.et</span>
-        </div>
-        <div class="panel-header-right">
-          <span class="lang-badge">EduTrace</span>
-        </div>
-      </div>
-
-      <div class="editor-wrap">
-        <div id="lineNums" class="line-numbers"></div>
-        <textarea id="codeEditor" spellcheck="false" autocomplete="off" autocorrect="off"></textarea>
-      </div>
-
-      <div class="editor-footer">
-        <span id="cursorPos">Línea 1, Col 1</span>
-        <span id="charCount">0 chars</span>
-      </div>
-    </section>
-
-    <div id="resizer" class="resize-handle" aria-hidden="true"></div>
-
-    <section class="output-panel">
-      <div class="panel-header">
-        <nav class="tabs" aria-label="Resultados del compilador">
-          <button class="tab active" data-tab="check"><span>✓</span> Semántica</button>
-          <button class="tab" data-tab="tokens"><span>{}</span> Tokens</button>
-          <button class="tab" data-tab="ast"><span>⌥</span> AST</button>
-          <button class="tab" data-tab="trace"><span>◎</span> Trace</button>
-          <button class="tab" data-tab="opt"><span>⚡</span> Opt</button>
-          <button class="tab" data-tab="asm"><span>»</span> ASM</button>
-          <button class="tab" data-tab="noopt"><span>O0</span> ASM sin opt</button>
-          <button class="tab" data-tab="run"><span>▶</span> Output</button>
-          <button class="tab" data-tab="err"><span>!</span> Errores <span class="err-badge" id="errBadge" hidden>0</span></button>
-        </nav>
-        <div class="output-controls">
-          <button class="ctrl-btn" id="btnClear" type="button" title="Limpiar">✕</button>
-          <button class="ctrl-btn" id="btnCopy" type="button" title="Copiar">⎘</button>
-        </div>
-      </div>
-
-      <div class="panels">
-        <section class="panel active" id="panel-check">
-          <div class="empty-state" id="es-check">
-            <div><div class="empty-icon">✓</div><p>Ejecuta <strong>Semántica</strong> para verificar tipos y errores.</p></div>
-          </div>
-          <div class="result hidden" id="res-check">
-            <div class="result-header" id="hdr-check"></div>
-            <pre class="code-pre" id="pre-check"></pre>
-          </div>
-        </section>
-
-        <section class="panel" id="panel-tokens">
-          <div class="empty-state" id="es-tokens">
-            <div><div class="empty-icon">{}</div><p>Ejecuta <strong>Tokens</strong> para ver el análisis léxico.</p></div>
-          </div>
-          <div class="result hidden" id="res-tokens">
-            <div class="result-header" id="hdr-tokens"></div>
-            <div id="tok-chips"></div>
-            <pre class="code-pre hidden" id="pre-tokens"></pre>
-          </div>
-        </section>
-
-        <section class="panel" id="panel-ast">
-          <div class="empty-state" id="es-ast">
-            <div><div class="empty-icon">⌥</div><p>Ejecuta <strong>AST</strong> para ver el árbol de sintaxis.</p></div>
-          </div>
-          <div class="result hidden" id="res-ast">
-            <div class="result-header" id="hdr-ast"></div>
-            <pre class="code-pre" id="pre-ast"></pre>
-          </div>
-        </section>
-
-        <section class="panel" id="panel-trace">
-          <div class="empty-state" id="es-trace">
-            <div><div class="empty-icon">◎</div><p>Ejecuta <strong>Trace</strong> para ver la traza educativa.</p></div>
-          </div>
-          <div class="result hidden" id="res-trace">
-            <div class="result-header" id="hdr-trace"></div>
-            <div id="trace-view"></div>
-          </div>
-        </section>
-
-        <section class="panel" id="panel-opt">
-          <div class="empty-state" id="es-opt">
-            <div><div class="empty-icon">⚡</div><p>Ejecuta <strong>Opt</strong> para ver el reporte de optimización.</p></div>
-          </div>
-          <div class="result hidden" id="res-opt">
-            <div class="result-header" id="hdr-opt"></div>
-            <div id="opt-view"></div>
-          </div>
-        </section>
-
-        <section class="panel" id="panel-asm">
-          <div class="empty-state" id="es-asm">
-            <div><div class="empty-icon">»</div><p>Ejecuta <strong>ASM</strong> para ver el ensamblador x86 optimizado.</p></div>
-          </div>
-          <div class="result hidden" id="res-asm">
-            <div class="result-header" id="hdr-asm"></div>
-            <pre class="code-pre" id="pre-asm"></pre>
-          </div>
-        </section>
-
-        <section class="panel" id="panel-noopt">
-          <div class="empty-state" id="es-noopt">
-            <div><div class="empty-icon">O0</div><p>Ejecuta <strong>ASM sin opt</strong> para comparar contra O1.</p></div>
-          </div>
-          <div class="result hidden" id="res-noopt">
-            <div class="result-header" id="hdr-noopt"></div>
-            <pre class="code-pre" id="pre-noopt"></pre>
-          </div>
-        </section>
-
-        <section class="panel" id="panel-run">
-          <div class="empty-state" id="es-run">
-            <div><div class="empty-icon">▶</div><p>Ejecuta el programa para ver su salida final.</p></div>
-          </div>
-          <div class="result hidden" id="res-run">
-            <div class="result-header" id="hdr-run"></div>
-            <pre class="code-pre" id="pre-run"></pre>
-          </div>
-        </section>
-
-        <section class="panel" id="panel-err">
-          <div class="empty-state" id="es-err">
-            <div><div class="empty-icon">✓</div><p>No hay errores registrados.</p></div>
-          </div>
-          <div class="result hidden" id="res-err">
-            <div id="err-list"></div>
-          </div>
-        </section>
-      </div>
-
-      <footer class="status-bar">
-        <div class="status-left">
-          <span id="sbDot" class="sb-dot"></span>
-          <span id="sbMsg" class="sb-msg">Listo</span>
-        </div>
-        <div class="status-right">
-          <span id="sbElapsed"></span>
-        </div>
-      </footer>
-    </section>
-  </main>
-
-  <script src="/frontend/app.js"></script>
+<script src="/frontend/app.js"></script>
 </body>
 </html>

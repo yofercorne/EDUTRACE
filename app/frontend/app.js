@@ -1,20 +1,20 @@
 /* ================================================================
    EduTrace App — app.js
-   Matches exact output formats of the EduTrace compiler CLI.
-
-   Token format:   TokenTypeName 'lexeme' (line:col)
-   AST format:     indented text via ASTPrinter (spaces * level)
-   Check format:   "Análisis léxico, sintáctico y semántico exitoso."
-   Trace format:   lines starting with "=== EduTrace..." header
-   Opt format:     "Resumen de optimizaciones\n  Constant folding: N\n..."
-   ASM:            data.asm field (written to file, read by server.py)
-   Run:            data.stdout = program stdout, data.asm = generated asm
+   
+   Compiler output formats (from reading source):
+     tokens:     "TypeName 'lexeme' (line:col)"  e.g. Fun 'fun' (1:1)
+     ast:        2-space indented text, via ASTPrinter
+     check:      "Análisis léxico, sintáctico y semántico exitoso."
+     trace:      lines with "=== EduTrace...", "print:", "Variable X cambió:", etc.
+     opt_report: "Resumen de optimizaciones\n  Constant folding: N\n..."
+     asm/asm_no_opt: data.asm field (file written by compiler, read by server)
+     run:        data.stdout = program stdout, data.asm = asm generated
 ================================================================ */
-
 'use strict';
 
-// ── ELEMENTS ─────────────────────────────────────────────────
-const $  = id => document.getElementById(id);
+// ── DOM SHORTCUTS ─────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
 const codeEditor = $('codeEditor');
 const lineNums   = $('lineNums');
 const cursorPos  = $('cursorPos');
@@ -25,8 +25,9 @@ const sbElapsed  = $('sbElapsed');
 const errBadge   = $('errBadge');
 const healthDot  = $('healthDot');
 const mainRunBtn = $('mainRunBtn');
+const tabHint    = $('tabHint');
 
-// ── SAMPLE ───────────────────────────────────────────────────
+// ── SAMPLE CODE ───────────────────────────────────────────────
 const SAMPLE = `fun int main() {
     let x = 10;
     let y = x + 5;
@@ -49,64 +50,96 @@ const SAMPLE = `fun int main() {
     return 0;
 }`;
 
-// ── TAB / PANEL SYSTEM ───────────────────────────────────────
+// ── TAB SYSTEM ────────────────────────────────────────────────
+// Tab config: maps tabId → { action, hint }
+const TAB_CONFIG = {
+  check:  { action: 'check',      hint: 'Semántica — verifica tipos y declaraciones.' },
+  tokens: { action: 'tokens',     hint: 'Tokens — resultado del análisis léxico. Cada símbolo reconocido.' },
+  ast:    { action: 'ast',        hint: 'AST — árbol de sintaxis abstracta: la estructura jerárquica del programa.' },
+  trace:  { action: 'trace',      hint: 'Trace — explicación paso a paso de lo que ejecuta el programa.' },
+  opt:    { action: 'opt_report', hint: 'Optimización — transfor­maciones aplicadas por el compilador (con comparación ASM).' },
+  asm:    { action: 'asm',        hint: 'ASM x86 — código ensamblador optimizado generado por el compilador.' },
+  run:    { action: 'run',        hint: 'Ejecutar — compila el programa y muestra su salida real.' },
+  err:    { action: null,         hint: 'Errores — todos los errores encontrados en esta sesión.' },
+};
+
 function showTab(tabId) {
   document.querySelectorAll('.tab').forEach(t =>
     t.classList.toggle('active', t.dataset.tab === tabId));
   document.querySelectorAll('.panel').forEach(p =>
     p.classList.toggle('active', p.id === `panel-${tabId}`));
+  const cfg = TAB_CONFIG[tabId];
+  if (tabHint) tabHint.textContent = cfg ? cfg.hint : '';
 }
 
-document.querySelectorAll('.tab').forEach(btn =>
-  btn.addEventListener('click', () => showTab(btn.dataset.tab)));
+// Tabs: clicking fires the action for that tab
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tabId = btn.dataset.tab;
+    showTab(tabId);
+    const cfg = TAB_CONFIG[tabId];
+    if (cfg && cfg.action && !btn.hasAttribute('data-no-action')) {
+      runAction(cfg.action, tabId);
+    }
+  });
+});
 
-// ── PIPELINE STATE ────────────────────────────────────────────
-// action -> pipe-step button via data-action
+// ── PIPELINE STATUS INDICATORS (visual only) ──────────────────
+const PIPE_MAP = {
+  check:      'ps-check',
+  tokens:     'ps-tokens',
+  ast:        'ps-ast',
+  opt_ast:    'ps-ast',
+  trace:      'ps-trace',
+  opt_report: 'ps-opt',
+  asm:        'ps-asm',
+  asm_no_opt: 'ps-asm',
+  run:        'ps-run',
+};
+
 function setPipe(action, state) {
-  // state: '' | 'active' | 's-ok' | 's-err' | 's-spin'
-  const btn = document.querySelector(`.ps[data-action="${action}"]`);
-  if (!btn) return;
-  btn.classList.remove('active', 's-ok', 's-err', 's-spin');
-  if (state) btn.classList.add(state);
+  const elId = PIPE_MAP[action];
+  if (!elId) return;
+  const el = $(elId);
+  if (!el) return;
+  el.classList.remove('s-ok', 's-err', 's-run');
+  if (state) el.classList.add(state);
 }
 
 // ── STATUS BAR ────────────────────────────────────────────────
 function setStatus(msg, state = '') {
   sbMsg.textContent = msg;
   sbMsg.className = `sb-msg ${state}`;
-  sbDot.className  = `sb-dot ${state === 'ok' ? 'ok' : state === 'err' ? 'err' : state === 'loading' ? 'spin' : ''}`;
+  sbDot.className = `sb-dot ${
+    state === 'ok' ? 'ok' : state === 'err' ? 'err' : state === 'loading' ? 'spin' : ''
+  }`;
 }
-
 function setElapsed(ms) {
-  if (ms == null) { sbElapsed.textContent = ''; return; }
-  sbElapsed.textContent = ms < 1000 ? `${ms}ms` : `${(ms/1000).toFixed(2)}s`;
+  sbElapsed.textContent = ms == null ? '' : ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(2)}s`;
 }
 
-// ── RESULT HELPERS ────────────────────────────────────────────
+// ── UTILITY ───────────────────────────────────────────────────
 function h(s) {
   return String(s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
-
-function showEmpty(panelId) {
-  $(`es-${panelId}`)  && ($(`es-${panelId}`).style.display = '');
-  $(`res-${panelId}`) && $(`res-${panelId}`).classList.add('hidden');
+function showEmpty(id) {
+  const es = $(`es-${id}`); if (es) es.style.display = '';
+  const res = $(`res-${id}`); if (res) res.classList.add('hidden');
 }
-
-function showResult(panelId) {
-  $(`es-${panelId}`)  && ($(`es-${panelId}`).style.display = 'none');
-  $(`res-${panelId}`) && $(`res-${panelId}`).classList.remove('hidden');
+function showResult(id) {
+  const es = $(`es-${id}`); if (es) es.style.display = 'none';
+  const res = $(`res-${id}`); if (res) res.classList.remove('hidden');
 }
-
 function makeHdr(ok, label, ms) {
   const tag = ok
     ? `<span class="tag tag-ok">✓ OK</span>`
     : `<span class="tag tag-err">✗ Error</span>`;
-  const time = ms != null ? `<span class="ms-label">${ms < 1000 ? ms+'ms' : (ms/1000).toFixed(2)+'s'}</span>` : '';
+  const time = ms != null ? `<span class="ms-label">${ms < 1000 ? ms + 'ms' : (ms / 1000).toFixed(2) + 's'}</span>` : '';
   return `${tag}<span>${h(label)}</span>${time}`;
 }
 
-// ── ERRORS PANEL ──────────────────────────────────────────────
+// ── ERROR PANEL ───────────────────────────────────────────────
 let errTotal = 0;
 
 function addError(source, msg) {
@@ -115,215 +148,297 @@ function addError(source, msg) {
   errBadge.hidden = false;
   errBadge.textContent = errTotal;
   showResult('err');
-  const list = $('err-list');
   const item = document.createElement('div');
   item.className = 'err-item';
   item.innerHTML = `<div class="err-src">${h(source)}</div><div class="err-msg">${h(msg.trim())}</div>`;
-  list.appendChild(item);
+  $('err-list').appendChild(item);
 }
 
 function clearAllResults() {
-  // reset all panels to empty state
-  ['check','tokens','ast','trace','opt','asm','noopt','run','err'].forEach(id => showEmpty(id));
-  // clear content
-  ['pre-check','pre-tokens','pre-ast','pre-asm','pre-noopt','pre-run'].forEach(id => {
+  ['check', 'tokens', 'ast', 'trace', 'opt', 'asm', 'run', 'err'].forEach(showEmpty);
+  ['pre-check', 'pre-tokens', 'pre-ast', 'pre-asm', 'pre-run'].forEach(id => {
+    const el = $(id); if (el) { el.innerHTML = ''; el.textContent = ''; }
+  });
+  ['tok-chips', 'tok-tbody', 'trace-view', 'opt-view', 'err-list', 'ast-tree'].forEach(id => {
     const el = $(id); if (el) el.innerHTML = '';
   });
-  ['tok-chips','trace-view','opt-view','err-list'].forEach(id => {
-    const el = $(id); if (el) el.innerHTML = '';
-  });
-  ['hdr-check','hdr-tokens','hdr-ast','hdr-trace','hdr-opt','hdr-asm','hdr-noopt','hdr-run'].forEach(id => {
+  ['hdr-check', 'hdr-tokens', 'hdr-ast', 'hdr-trace', 'hdr-opt', 'hdr-asm', 'hdr-run'].forEach(id => {
     const el = $(id); if (el) el.innerHTML = '';
   });
   errTotal = 0;
   errBadge.hidden = true;
   errBadge.textContent = '0';
-  document.querySelectorAll('.ps').forEach(b => setPipe(b.dataset.action, ''));
-  setStatus('Listo');
+  Object.keys(PIPE_MAP).forEach(a => setPipe(a, ''));
+  setStatus('Listo — selecciona una pestaña para ejecutar');
   setElapsed(null);
+  // reset token view
+  setTokenView('chips', true);
+  // reset ast view
+  setAstView('tree', true);
 }
 
-// ── TOKEN PARSER ──────────────────────────────────────────────
-/*
-  Real format from scanner.cpp / main.cpp:
-    tokenTypeName(t.type) << " '" << t.lexeme << "' (" << t.loc.toString() << ")"
-  Example:
-    Fun 'fun' (1:1)
-    Int 'int' (1:5)
-    Identifier 'main' (1:9)
-    LeftParen '(' (1:13)
-*/
+// ══════════════════════════════════════════════════════════════
+// ── TOKENS ───────────────────────────────────────────────────
+// Format: "TypeName 'lexeme' (line:col)"
+// ══════════════════════════════════════════════════════════════
 
-// Map tokenTypeName -> CSS class
-const KW_NAMES = new Set([
-  'Fun','Var','Let','If','Else','While','For','Return','Print',
-  'New','Delete','Lambda','True','False'
-]);
-const TYPE_NAMES = new Set(['Int','Bool','Char','StringType','Void']);
-const PUNCT_NAMES = new Set([
-  'LeftParen','RightParen','LeftBrace','RightBrace',
-  'LeftBracket','RightBracket','Comma','Dot','Semicolon','Colon'
-]);
-const OP_NAMES = new Set([
-  'Plus','Minus','Star','Slash','Percent','Ampersand',
-  'Bang','BangEqual','Equal','EqualEqual',
-  'Greater','GreaterEqual','Less','LessEqual','AndAnd','OrOr'
-]);
-const EDU_NAMES = new Set([
-  'Trace','Variables','Loop','Branch','Stack','Recursion','Array','Memory'
-]);
+const KW_SET   = new Set(['Fun','Var','Let','If','Else','While','For','Return','Print','New','Delete','Lambda','True','False']);
+const TYPE_SET  = new Set(['Int','Bool','Char','StringType','Void']);
+const PUNCT_SET = new Set(['LeftParen','RightParen','LeftBrace','RightBrace','LeftBracket','RightBracket','Comma','Dot','Semicolon','Colon']);
+const OP_SET    = new Set(['Plus','Minus','Star','Slash','Percent','Ampersand','Bang','BangEqual','Equal','EqualEqual','Greater','GreaterEqual','Less','LessEqual','AndAnd','OrOr']);
+const EDU_SET   = new Set(['Trace','Variables','Loop','Branch','Stack','Recursion','Array','Memory']);
 
-function tokenClass(typeName) {
-  if (typeName === 'Identifier')    return 'tk-id';
-  if (typeName === 'Number')        return 'tk-num';
-  if (typeName === 'StringLiteral') return 'tk-str';
-  if (typeName === 'CharLiteral')   return 'tk-str';
-  if (typeName === 'EndOfFile')     return 'tk-eof';
-  if (KW_NAMES.has(typeName))       return 'tk-kw';
-  if (TYPE_NAMES.has(typeName))     return 'tk-type';
-  if (PUNCT_NAMES.has(typeName))    return 'tk-pun';
-  if (OP_NAMES.has(typeName))       return 'tk-op';
-  if (EDU_NAMES.has(typeName))      return 'tk-edu';
-  return 'tk-pun';
+function tokenCategory(typeName) {
+  if (typeName === 'Identifier')    return { cls: 'tk-id',   cat: 'identifier' };
+  if (typeName === 'Number')        return { cls: 'tk-num',  cat: 'literal' };
+  if (typeName === 'StringLiteral') return { cls: 'tk-str',  cat: 'literal' };
+  if (typeName === 'CharLiteral')   return { cls: 'tk-str',  cat: 'literal' };
+  if (typeName === 'EndOfFile')     return { cls: 'tk-eof',  cat: 'eof' };
+  if (KW_SET.has(typeName))         return { cls: 'tk-kw',   cat: 'keyword' };
+  if (TYPE_SET.has(typeName))       return { cls: 'tk-type', cat: 'type' };
+  if (PUNCT_SET.has(typeName))      return { cls: 'tk-pun',  cat: 'punctuation' };
+  if (OP_SET.has(typeName))         return { cls: 'tk-op',   cat: 'operator' };
+  if (EDU_SET.has(typeName))        return { cls: 'tk-edu',  cat: 'trace' };
+  return { cls: 'tk-pun', cat: 'other' };
 }
 
-function renderTokens(raw) {
-  const chips = $('tok-chips');
-  const pre   = $('pre-tokens');
-  chips.innerHTML = '';
-
-  // Try to parse "TypeName 'lexeme' (line:col)" format
-  // Regex: captures: (typename) '(lexeme)' (loc)
-  const RE = /^([A-Za-z]+)\s+'(.*)'\s+\((.+)\)$/;
-  const lines = raw.split('\n').filter(l => l.trim());
-  let parsed = 0;
-
-  lines.forEach(line => {
+// Parse raw token output into structured array
+function parseTokens(raw) {
+  // Real format: TypeName 'lexeme' (line:col)
+  const RE = /^([A-Za-z]+)\s+'(.*)'\s+\((\d+):(\d+)\)\s*$/;
+  const result = [];
+  raw.split('\n').forEach(line => {
     const m = line.match(RE);
     if (!m) return;
-    parsed++;
-    const [, tname, lexeme, loc] = m;
-    const cls = tokenClass(tname);
-    const chip = document.createElement('span');
-    chip.className = `tk ${cls}`;
-    chip.title = `${tname} @ ${loc}`;
-
-    // Show: lexeme for readable tokens, or type name for punctuation/operators
-    const displayLex = lexeme.length <= 20 ? lexeme : lexeme.slice(0,18)+'…';
-    const showType = cls === 'tk-pun' || cls === 'tk-op' || cls === 'tk-eof';
-
-    if (showType) {
-      chip.innerHTML = `<span>${h(tname)}</span>${lexeme && lexeme !== tname ? `<span class="tk-lex">${h(displayLex)}</span>` : ''}`;
-    } else {
-      chip.innerHTML = `<span>${h(displayLex)}</span><span class="tk-lex">${h(tname)}</span>`;
-    }
-    chips.appendChild(chip);
+    const [, type, lexeme, lineN, col] = m;
+    const { cls, cat } = tokenCategory(type);
+    result.push({ type, lexeme, line: parseInt(lineN), col: parseInt(col), cls, cat });
   });
+  return result;
+}
 
-  if (parsed === 0) {
-    // fallback: raw text
-    chips.classList.add('hidden');
-    pre.classList.remove('hidden');
-    pre.textContent = raw;
-  } else {
-    chips.classList.remove('hidden');
-    pre.classList.add('hidden');
+let _tokenData = []; // cached for view switching
+let _tokenView = 'chips';
+
+function setTokenView(view, silent) {
+  _tokenView = view;
+  const chips = $('tok-chips');
+  const tableWrap = $('tok-table-wrap');
+  const pre = $('pre-tokens');
+  const togC = $('togChips');
+  const togT = $('togTable');
+
+  if (chips) chips.classList.toggle('hidden', view !== 'chips');
+  if (tableWrap) tableWrap.classList.toggle('hidden', view !== 'table');
+  if (pre) pre.classList.add('hidden');
+  if (togC) togC.classList.toggle('active', view === 'chips');
+  if (togT) togT.classList.toggle('active', view === 'table');
+
+  if (!silent && _tokenData.length) {
+    if (view === 'chips') renderTokenChips(_tokenData);
+    else renderTokenTable(_tokenData);
   }
 }
 
-// ── AST COLORIZER ─────────────────────────────────────────────
-/*
-  Real format from ASTPrinter in main.cpp, uses 2-space indentation per level.
-  Lines like:
-    Program
-      Function main -> int
-        Param x: int
-        Block
-          LetDecl x: int
-            Int 10
-          ...
-*/
-function colorizeAST(raw) {
-  return raw.split('\n').map(line => {
+function renderTokenChips(tokens) {
+  const el = $('tok-chips');
+  if (!el) return;
+  el.innerHTML = '';
+  tokens.forEach(({ type, lexeme, line, col, cls }) => {
+    const chip = document.createElement('span');
+    chip.className = `tk ${cls}`;
+    chip.title = `${type} @ ${line}:${col}`;
+    const displayLex = lexeme.length <= 22 ? lexeme : lexeme.slice(0, 20) + '…';
+    const isSymbol = cls === 'tk-pun' || cls === 'tk-op';
+    if (isSymbol) {
+      chip.innerHTML = `<span>${h(type)}</span>${lexeme ? `<span class="tk-lex">'${h(displayLex)}'</span>` : ''}`;
+    } else {
+      chip.innerHTML = `<span>${h(displayLex || type)}</span><span class="tk-lex">${h(type)}</span>`;
+    }
+    el.appendChild(chip);
+  });
+}
+
+function renderTokenTable(tokens) {
+  const tbody = $('tok-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  tokens.forEach(({ type, lexeme, line, col, cls, cat }, i) => {
+    const tc = cls.replace('tk-', 'tt-');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i + 1}</td>
+      <td class="${tc}">${h(type)}</td>
+      <td class="tt-lex">${h(lexeme)}</td>
+      <td>${line}</td>
+      <td>${col}</td>
+      <td class="tt-cat ${tc}">${h(cat)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderTokens(raw) {
+  _tokenData = parseTokens(raw);
+  if (_tokenData.length === 0) {
+    // fallback: show raw
+    $('tok-chips').classList.add('hidden');
+    $('tok-table-wrap').classList.add('hidden');
+    const pre = $('pre-tokens');
+    pre.classList.remove('hidden');
+    pre.textContent = raw;
+    return;
+  }
+  if (_tokenView === 'table') renderTokenTable(_tokenData);
+  else renderTokenChips(_tokenData);
+}
+
+// ══════════════════════════════════════════════════════════════
+// ── AST TREE ─────────────────────────────────────────────────
+// Format: 2-space indented text from ASTPrinter in main.cpp
+// ══════════════════════════════════════════════════════════════
+
+let _astRaw = '';
+let _astView = 'tree';
+
+function setAstView(view, silent) {
+  _astView = view;
+  const treeWrap = $('ast-tree-wrap');
+  const pre      = $('pre-ast');
+  const togTree  = $('togAstTree');
+  const togRaw   = $('togAstRaw');
+  if (treeWrap) treeWrap.classList.toggle('hidden', view !== 'tree');
+  if (pre)      pre.classList.toggle('hidden', view !== 'raw');
+  if (togTree)  togTree.classList.toggle('active', view === 'tree');
+  if (togRaw)   togRaw.classList.toggle('active', view === 'raw');
+  if (!silent && _astRaw) {
+    if (view === 'tree') renderASTTree(_astRaw);
+    else renderASTRaw(_astRaw);
+  }
+}
+
+function astNodeClass(label) {
+  if (/^Program/.test(label))      return 'ak-prog';
+  if (/^Function|^Struct/.test(label)) return 'ak-fn';
+  if (/^Param/.test(label))        return 'ak-param';
+  if (/^Block/.test(label))        return 'ak-blk';
+  if (/^LetDecl|^VarDecl|^Field/.test(label)) return 'ak-decl';
+  if (/^(If|While|For|Return|Print|Assign|ArrayAssign|PointerAssign|FieldAssign|Trace|ExprStmt|Delete)/.test(label)) return 'ak-stmt';
+  if (/^(Binary|Unary|Call|ArrayAccess|FieldAccess|Lambda|New)/.test(label)) return 'ak-expr';
+  if (/^Id\s/.test(label))         return 'ak-id';
+  if (/^String\s/.test(label))     return 'ak-str';
+  if (/^(Int|Bool|Char)\s/.test(label)) return 'ak-lit';
+  return 'ak-blk';
+}
+
+// Parse indented text into a tree of {label, children}
+function parseASTIndent(raw) {
+  const lines = raw.split('\n').filter(l => l.trimEnd());
+  const root = { label: 'root', children: [], depth: -1 };
+  const stack = [root];
+
+  lines.forEach(line => {
+    const spaces = line.match(/^(\s*)/)[1].length;
+    // ASTPrinter uses 2 spaces per level
+    const depth = Math.floor(spaces / 2);
+    const label = line.trim();
+    if (!label) return;
+    const node = { label, children: [], depth };
+    // Pop stack until we find the parent
+    while (stack.length > 1 && stack[stack.length - 1].depth >= depth) stack.pop();
+    stack[stack.length - 1].children.push(node);
+    stack.push(node);
+  });
+
+  return root.children;
+}
+
+function buildASTHtml(nodes, isLast = []) {
+  if (!nodes || !nodes.length) return '';
+  return nodes.map((node, i) => {
+    const last = i === nodes.length - 1;
+    const hasChildren = node.children && node.children.length > 0;
+    const cls = astNodeClass(node.label);
+    const nodeId = 'an' + Math.random().toString(36).slice(2, 8);
+
+    const toggleBtn = hasChildren
+      ? `<button class="ast-toggle" onclick="toggleASTNode('${nodeId}')" title="Colapsar/Expandir">−</button>`
+      : `<span class="ast-toggle-spacer"></span>`;
+
+    const labelHtml = `<span class="ast-label ${cls}">${h(node.label)}</span>`;
+
+    const childrenHtml = hasChildren
+      ? `<div class="ast-children" id="${nodeId}">${buildASTHtml(node.children)}</div>`
+      : '';
+
+    return `<div class="ast-node-wrap">
+      <div class="ast-node-row">
+        ${toggleBtn}
+        ${labelHtml}
+      </div>
+      ${childrenHtml}
+    </div>`;
+  }).join('');
+}
+
+function renderASTTree(raw) {
+  const container = $('ast-tree');
+  if (!container) return;
+  const nodes = parseASTIndent(raw);
+  container.innerHTML = buildASTHtml(nodes);
+}
+
+function renderASTRaw(raw) {
+  const pre = $('pre-ast');
+  if (!pre) return;
+  // Color the raw text
+  pre.innerHTML = raw.split('\n').map(line => {
     const indent = line.match(/^(\s*)/)[1];
     const rest   = line.slice(indent.length);
-    if (!rest) return h(line);
-
-    // tree connectors (if any, e.g. from └── style)
-    const treeM = rest.match(/^([└├│─\s]+)(.*)/);
-    const tree  = treeM ? `<span class="ak-tree">${h(treeM[1])}</span>` : '';
-    const content = treeM ? treeM[2] : rest;
-
-    let colored = '';
-
-    if (/^Program/.test(content))
-      colored = `<span class="ak-blk">${h(content)}</span>`;
-    else if (/^(Function|Struct|Param)/.test(content))
-      colored = `<span class="ak-fn">${h(content)}</span>`;
-    else if (/^(LetDecl|VarDecl|Field)/.test(content))
-      colored = `<span class="ak-decl">${h(content)}</span>`;
-    else if (/^(Block)/.test(content))
-      colored = `<span class="ak-blk">${h(content)}</span>`;
-    else if (/^(If|While|For|Return|Print|Assign|ArrayAssign|PointerAssign|FieldAssign|Trace|ExprStmt|Delete)/.test(content))
-      colored = `<span class="ak-stmt">${h(content)}</span>`;
-    else if (/^(Binary|Unary|Call|ArrayAccess|FieldAccess|Lambda|New|Int|Bool|Char)/.test(content))
-      colored = `<span class="ak-expr">${h(content)}</span>`;
-    else if (/^Id\s/.test(content))
-      colored = `<span class="ak-id">${h(content)}</span>`;
-    else if (/^String\s/.test(content))
-      colored = `<span class="ak-str">${h(content)}</span>`;
-    else
-      colored = h(content);
-
-    // highlight operator inside Binary '...'
-    colored = colored.replace(/'([^']+)'/g, `'<span class="ak-op">${'$1'}</span>'`);
-
-    return h(indent) + tree + colored;
+    if (!rest) return '';
+    const cls = astNodeClass(rest);
+    return `${h(indent)}<span class="${cls}">${h(rest)}</span>`;
   }).join('\n');
 }
 
-// ── TRACE RENDERER ─────────────────────────────────────────────
-/*
-  Real lines from trace_visitor.cpp:
-  "=== EduTrace: traza educativa ==="
-  "=== Fin de traza ==="
-  "  Entrando a función: main"
-  "  Retorna 0 desde main"
-  "  print: 25"
-  "  Variable x cambió: 10 -> 15"
-  "  Arreglo nums[0] cambió: 0 -> 10"
-  "  Evaluando condición if:"
-  "    nums[2] > 20 => false"
-  "  Se ejecuta la rama ELSE."
-  "  Iteración 1 del while"
-  "  trace variables:"
-  "    x = 10"
-  "  trace array activado..."
-  "  Inferencia de tipo: x = int"
-  "  Declaración: x = 10"
-*/
+function toggleASTNode(id) {
+  const el = $(id);
+  if (!el) return;
+  const btn = el.previousElementSibling && el.previousElementSibling.querySelector('.ast-toggle');
+  const collapsed = el.classList.toggle('collapsed');
+  if (btn) btn.textContent = collapsed ? '+' : '−';
+}
+
+function astExpandAll(expand) {
+  document.querySelectorAll('.ast-children').forEach(el => {
+    el.classList.toggle('collapsed', !expand);
+  });
+  document.querySelectorAll('.ast-toggle').forEach(btn => {
+    btn.textContent = expand ? '−' : '+';
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// ── TRACE ─────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+
 function renderTrace(raw) {
   const view = $('trace-view');
   view.innerHTML = '';
 
-  const lines = raw.split('\n');
-
-  lines.forEach(line => {
+  raw.split('\n').forEach(line => {
     if (!line.trim()) return;
-
     const trim = line.trimStart();
     let cls = 'te-info', icon = '·', body = '';
 
     if (/^===/.test(trim)) {
-      cls = 'te-sep';
-      icon = '━';
-      body = `<b>${h(trim.replace(/===/g,'').trim())}</b>`;
+      cls = 'te-sep'; icon = '━';
+      body = `<b>${h(trim.replace(/===/g, '').trim())}</b>`;
     } else if (/^Entrando a (función|lambda):/.test(trim)) {
       cls = 'te-fn'; icon = '→';
       body = `<b>${h(trim)}</b>`;
     } else if (/^Retorna .+ desde /.test(trim)) {
       cls = 'te-ret'; icon = '⏎';
-      // Retorna <val> desde <fn>
       const m = trim.match(/^Retorna (.+) desde (.+)/);
       if (m) body = `Retorna <span class="val">${h(m[1])}</span> desde <b>${h(m[2])}</b>`;
       else body = h(trim);
@@ -347,15 +462,14 @@ function renderTrace(raw) {
     } else if (/^Se ejecuta la rama/.test(trim)) {
       cls = 'te-if'; icon = '↳';
       const branch = trim.includes('THEN') ? 'THEN' : 'ELSE';
-      body = `Rama <b class="${branch==='THEN'?'ok':'arr'}">${branch}</b>`;
+      body = `Rama <b class="${branch === 'THEN' ? 'ok' : 'arr'}">${branch}</b>`;
+    } else if (/^(Fin del ciclo|While: condición)/.test(trim)) {
+      cls = 'te-loop'; icon = '↻';
+      body = h(trim);
     } else if (/^Iteración \d+/.test(trim)) {
       cls = 'te-loop'; icon = '↻';
       body = `<b>${h(trim)}</b>`;
-    } else if (/^(trace (variables?|array|loop|branch|stack|recursion|memory)|Fin del ciclo|Declaración:|Inferencia de tipo:|parámetro )/.test(trim)) {
-      cls = 'te-info'; icon = '◉';
-      body = h(trim);
     } else if (/=>/.test(trim)) {
-      // condition evaluation line like "  x > 20 => false"
       cls = 'te-if'; icon = ' ';
       const m = trim.match(/^(.+?)\s+=>\s+(.+)/);
       if (m) body = `<span class="cond">${h(m[1])}</span> <span class="arr">⇒</span> <span class="val">${h(m[2])}</span>`;
@@ -371,173 +485,306 @@ function renderTrace(raw) {
   });
 }
 
-// ── OPT RENDERER ──────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// ── OPTIMIZACIÓN ─────────────────────────────────────────────
+// Uses opt_report + fetches asm + asm_no_opt for comparison
+// ══════════════════════════════════════════════════════════════
+
 /*
   Real format from optimizer_visitor.cpp:
-    "Resumen de optimizaciones"
-    "  Constant folding: N"
-    "  Simplificaciones algebraicas: N"
-    "  Código muerto eliminado: N"
-    "  If con condición constante simplificados: N"
-    "  While(false) eliminados: N"
-    "  Total: N"
+    Resumen de optimizaciones
+      Constant folding: N
+      Simplificaciones algebraicas: N
+      Código muerto eliminado: N
+      If con condición constante simplificados: N
+      While(false) eliminados: N
+      Total: N
 */
-function renderOpt(raw) {
-  const view = $('opt-view');
-  view.innerHTML = '';
 
-  const lines = raw.split('\n').filter(l => l.trim());
+// Explanation texts for each optimization type
+const OPT_EXPLAIN = {
+  'Constant folding':
+    'Expresiones que solo contienen constantes se calculan en tiempo de compilación. Por ejemplo: 2 + 3 * 4 → 14.',
+  'Simplificaciones algebraicas':
+    'Identidades algebraicas como x * 1 → x, x + 0 → x o x * 0 → 0 se simplifican automáticamente.',
+  'Código muerto eliminado':
+    'Sentencias que nunca se ejecutan (por ejemplo, después de un return, o dentro de un if(false)) se eliminan del AST.',
+  'If con condición constante simplificados':
+    'Si la condición del if es siempre true o false, se elimina la rama muerta. Ej: if(true){...}else{...} → solo el then.',
+  'While(false) eliminados':
+    'Un ciclo while cuya condición siempre es false nunca se ejecuta, así que se elimina completamente del código generado.',
+};
 
-  // Parse the structured output
+function parseOptReport(raw) {
   const stats = {};
-  lines.forEach(line => {
+  raw.split('\n').forEach(line => {
     const m = line.match(/^\s*(.+?):\s*(\d+)\s*$/);
     if (m) stats[m[1].trim()] = parseInt(m[2]);
   });
+  return stats;
+}
 
-  // Build stats bar
-  const total = stats['Total'] ?? Object.values(stats).reduce((a,b)=>a+b,0);
+async function runOptFull() {
+  showTab('opt');
+  const code = codeEditor.value.trim();
+  if (!code) { setStatus('El editor está vacío', 'err'); return; }
+
+  const view = $('opt-view');
+  view.innerHTML = `<div class="opt-loading"><div class="opt-spinner"></div>Cargando optimizaciones…</div>`;
+  showResult('opt');
+  setStatus('Analizando optimizaciones…', 'loading');
+  setElapsed(null);
+  setPipe('opt_report', 's-run');
+  mainRunBtn.classList.add('busy');
+
+  try {
+    // Run all 3 in parallel: opt_report, asm (optimized), asm_no_opt
+    const [repRes, asmRes, noOptRes] = await Promise.all([
+      apiCompile(code, 'opt_report'),
+      apiCompile(code, 'asm'),
+      apiCompile(code, 'asm_no_opt'),
+    ]);
+
+    const ok = repRes.ok;
+    const ms = repRes.elapsed_ms ?? null;
+    setPipe('opt_report', ok ? 's-ok' : 's-err');
+    setStatus(ok ? 'Optimización OK' : 'Error en optimización', ok ? 'ok' : 'err');
+    setElapsed(ms);
+    $('hdr-opt').innerHTML = makeHdr(ok, 'Reporte de optimizaciones', ms);
+
+    if (!ok) {
+      view.innerHTML = '';
+      const pre = document.createElement('pre');
+      pre.className = 'code-pre'; pre.style.flex = '1';
+      pre.textContent = repRes.stderr || repRes.error || repRes.stdout;
+      view.appendChild(pre);
+      addError('opt_report', repRes.stderr || repRes.error || '');
+      return;
+    }
+
+    renderOptFull(repRes, asmRes, noOptRes);
+
+  } catch (err) {
+    setPipe('opt_report', 's-err');
+    setStatus('Error de conexión', 'err');
+    addError('opt_report', String(err));
+    view.innerHTML = '';
+  } finally {
+    mainRunBtn.classList.remove('busy');
+    busy = false;
+  }
+}
+
+function renderOptFull(repData, asmData, noOptData) {
+  const view = $('opt-view');
+  view.innerHTML = '';
+
+  const stats = parseOptReport(repData.stdout || '');
+  const total = stats['Total'] ?? 0;
   const fold  = stats['Constant folding'] ?? 0;
   const alg   = stats['Simplificaciones algebraicas'] ?? 0;
   const dead  = stats['Código muerto eliminado'] ?? 0;
   const br    = stats['If con condición constante simplificados'] ?? 0;
   const lp    = stats['While(false) eliminados'] ?? 0;
 
-  const statsDiv = document.createElement('div');
-  statsDiv.className = 'opt-stats';
-  statsDiv.innerHTML = `
-    <div class="opt-stat-item">
-      <span class="opt-stat-label">Total optimizaciones</span>
-      <span class="opt-stat-val ${total>0?'green':'blue'}">${total}</span>
-    </div>
-    <div class="opt-stat-item">
-      <span class="opt-stat-label">Constant folding</span>
-      <span class="opt-stat-val blue">${fold}</span>
-    </div>
-    <div class="opt-stat-item">
-      <span class="opt-stat-label">Algebraicas</span>
-      <span class="opt-stat-val blue">${alg}</span>
-    </div>
-    <div class="opt-stat-item">
-      <span class="opt-stat-label">Código muerto</span>
-      <span class="opt-stat-val blue">${dead}</span>
-    </div>
-    <div class="opt-stat-item">
-      <span class="opt-stat-label">Ramas const.</span>
-      <span class="opt-stat-val blue">${br}</span>
-    </div>
-    <div class="opt-stat-item">
-      <span class="opt-stat-label">While(false)</span>
-      <span class="opt-stat-val blue">${lp}</span>
+  const asmOpt   = asmData.asm   || asmData.stdout   || '';
+  const asmNoOpt = noOptData.asm || noOptData.stdout || '';
+
+  const asmOptLines   = asmOpt.split('\n').filter(l => l.trim()).length;
+  const asmNoOptLines = asmNoOpt.split('\n').filter(l => l.trim()).length;
+  const reduction     = asmNoOptLines > 0
+    ? (((asmNoOptLines - asmOptLines) / asmNoOptLines) * 100).toFixed(1)
+    : '0.0';
+
+  // ── SECTION 1: Summary stats ──
+  const sec1 = document.createElement('div');
+  sec1.className = 'opt-section';
+  sec1.innerHTML = `
+    <div class="opt-section-title">Resumen</div>
+    <div class="opt-stats-grid">
+      <div class="opt-stat-card">
+        <div class="opt-stat-label">Total optimizaciones</div>
+        <div class="opt-stat-val ${total > 0 ? 'green' : 'blue'}">${total}</div>
+      </div>
+      <div class="opt-stat-card">
+        <div class="opt-stat-label">Const. folding</div>
+        <div class="opt-stat-val blue">${fold}</div>
+      </div>
+      <div class="opt-stat-card">
+        <div class="opt-stat-label">Algebraicas</div>
+        <div class="opt-stat-val blue">${alg}</div>
+      </div>
+      <div class="opt-stat-card">
+        <div class="opt-stat-label">Código muerto</div>
+        <div class="opt-stat-val blue">${dead}</div>
+      </div>
+      <div class="opt-stat-card">
+        <div class="opt-stat-label">Ramas const.</div>
+        <div class="opt-stat-val blue">${br}</div>
+      </div>
+      <div class="opt-stat-card">
+        <div class="opt-stat-label">While(false)</div>
+        <div class="opt-stat-val blue">${lp}</div>
+      </div>
+      <div class="opt-stat-card">
+        <div class="opt-stat-label">ASM sin opt</div>
+        <div class="opt-stat-val warn">${asmNoOptLines} líneas</div>
+      </div>
+      <div class="opt-stat-card">
+        <div class="opt-stat-label">ASM optimizado</div>
+        <div class="opt-stat-val green">${asmOptLines} líneas</div>
+      </div>
+      <div class="opt-stat-card">
+        <div class="opt-stat-label">Reducción ASM</div>
+        <div class="opt-stat-val green">↓ ${reduction}%</div>
+      </div>
     </div>
   `;
-  view.appendChild(statsDiv);
+  view.appendChild(sec1);
 
-  // Item cards for each non-zero category
+  // ── SECTION 2: ASM comparison ──
+  if (asmOpt || asmNoOpt) {
+    const sec2 = document.createElement('div');
+    sec2.className = 'opt-section';
+    sec2.innerHTML = `
+      <div class="opt-section-title">Comparación ASM</div>
+      <div class="opt-asm-compare">
+        <div class="opt-asm-col">
+          <div class="opt-asm-col-title">
+            Sin optimizar
+            <span class="lc">${asmNoOptLines} líneas</span>
+          </div>
+          <pre class="opt-asm-pre">${colorizeASM(asmNoOpt)}</pre>
+        </div>
+        <div class="opt-asm-col">
+          <div class="opt-asm-col-title">
+            Optimizado
+            <span class="lc">${asmOptLines} líneas</span>
+          </div>
+          <pre class="opt-asm-pre">${colorizeASM(asmOpt)}</pre>
+        </div>
+      </div>
+    `;
+    view.appendChild(sec2);
+  }
+
+  // ── SECTION 3: Detail cards per optimization type ──
   const items = [
-    { key:'Constant folding',                        badge:'ob-fold',   label:'Const Folding' },
-    { key:'Simplificaciones algebraicas',            badge:'ob-alg',    label:'Algebraicas'   },
-    { key:'Código muerto eliminado',                 badge:'ob-dead',   label:'Código muerto' },
-    { key:'If con condición constante simplificados',badge:'ob-branch', label:'Branch const.' },
-    { key:'While(false) eliminados',                 badge:'ob-loop',   label:'While(false)'  },
+    { key: 'Constant folding',                         count: fold, badge: 'ob-fold' },
+    { key: 'Simplificaciones algebraicas',             count: alg,  badge: 'ob-alg'  },
+    { key: 'Código muerto eliminado',                  count: dead, badge: 'ob-dead' },
+    { key: 'If con condición constante simplificados', count: br,   badge: 'ob-branch'},
+    { key: 'While(false) eliminados',                  count: lp,   badge: 'ob-loop' },
   ];
 
-  items.forEach(({ key, badge, label }) => {
-    const n = stats[key] ?? 0;
-    const item = document.createElement('div');
-    item.className = 'opt-item';
-    item.innerHTML = `
-      <span class="opt-badge ${badge}">${h(label)}</span>
-      <span class="opt-text"><b>${n}</b> optimizaci${n===1?'ón':'ones'} — ${h(key)}</span>
-    `;
-    view.appendChild(item);
-  });
+  const nonZero = items.filter(it => it.count > 0);
+  if (nonZero.length > 0) {
+    const sec3 = document.createElement('div');
+    sec3.className = 'opt-section';
+    sec3.innerHTML = `<div class="opt-section-title">Optimizaciones aplicadas</div>`;
+    const list = document.createElement('div');
+    list.className = 'opt-detail-list';
 
-  // If nothing parsed, show raw
-  if (Object.keys(stats).length === 0) {
-    view.innerHTML = '';
-    const pre = document.createElement('pre');
-    pre.className = 'code-pre';
-    pre.style.flex = '1';
-    pre.textContent = raw;
-    view.appendChild(pre);
+    nonZero.forEach(({ key, count, badge }) => {
+      const explain = OPT_EXPLAIN[key] || '';
+      const card = document.createElement('div');
+      card.className = 'opt-card';
+      card.innerHTML = `
+        <div class="opt-card-hdr">
+          <span class="opt-badge ${badge}">${h(key)}</span>
+          <span class="opt-card-count">${count}×</span>
+        </div>
+        <div class="opt-card-body">
+          <div class="opt-card-explain">${h(explain)}</div>
+        </div>
+      `;
+      list.appendChild(card);
+    });
+
+    sec3.appendChild(list);
+    view.appendChild(sec3);
+  } else {
+    const sec3 = document.createElement('div');
+    sec3.className = 'opt-section';
+    sec3.innerHTML = `
+      <div class="opt-section-title">Optimizaciones aplicadas</div>
+      <p style="color:var(--t3);font-size:12px">No se aplicaron optimizaciones en este programa.</p>
+    `;
+    view.appendChild(sec3);
   }
 }
 
+// ══════════════════════════════════════════════════════════════
 // ── ASM COLORIZER ─────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+
 function colorizeASM(raw) {
+  if (!raw) return '';
   return raw.split('\n').map(line => {
     if (!line.trim()) return '';
-    // comment-only line
-    if (/^\s*#/.test(line)) return `<span class="ac">${h(line)}</span>`;
-    // directive
-    if (/^\s*\./.test(line)) return `<span class="ad">${h(line)}</span>`;
-    // label (word followed by colon at start)
-    if (/^\w[\w.]*:/.test(line.trimStart())) return `<span class="al">${h(line)}</span>`;
-    // instruction line
+    if (/^\s*#/.test(line))            return `<span class="ac">${h(line)}</span>`;
+    if (/^\s*\./.test(line))           return `<span class="ad">${h(line)}</span>`;
+    if (/^\s*\w[\w.]*:/.test(line))    return `<span class="al">${h(line)}</span>`;
     return line
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-      // opcode (first word after whitespace)
-      .replace(/^(\s+)([a-z][a-z0-9]*)/, (_, sp, op) => `${h(sp)}<span class="ao">${op}</span>`)
-      // registers %rax etc
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/^(\s+)([a-z][a-z0-9]*)/, (_, sp, op) => `${sp}<span class="ao">${op}</span>`)
       .replace(/(%[a-z][a-z0-9]*)/g, '<span class="ar">$1</span>')
-      // immediates $N
       .replace(/\$(-?\d+)/g, '<span class="ai">$$$1</span>')
-      // memory (N(%reg))
-      .replace(/(-?\d+)\((<span class="ar">%[^<]+<\/span>)\)/g,
-               '<span class="am">$1($2)</span>')
-      // inline comments
+      .replace(/(-?\d+)\((<span class="ar">%[^<]+<\/span>)\)/g, '<span class="am">$1($2)</span>')
       .replace(/(#.*)$/, '<span class="ac">$1</span>');
   }).join('\n');
 }
 
-// ── CORE API CALL ─────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// ── CORE API ──────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+
 let busy = false;
+
+async function apiCompile(code, action) {
+  const res = await fetch('/api/compile', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, action }),
+  });
+  return await res.json();
+}
 
 async function runAction(action, tabId) {
   if (busy) return;
+  // opt_report gets its own full handler
+  if (action === 'opt_report') { await runOptFull(); return; }
+
   busy = true;
 
-  const code = codeEditor.value;
-  if (!code.trim()) {
+  const code = codeEditor.value.trim();
+  if (!code) {
     setStatus('El editor está vacío', 'err');
     busy = false;
     return;
   }
 
-  // Switch to the relevant tab
   if (tabId) showTab(tabId);
-
-  // Update UI
-  setPipe(action, 's-spin');
+  setPipe(action, 's-run');
   setStatus(`Ejecutando ${action}…`, 'loading');
   setElapsed(null);
   mainRunBtn.classList.add('busy');
 
   try {
-    const res  = await fetch('/api/compile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code, action }),
-    });
-    const data = await res.json();
-    const ok   = Boolean(data.ok);
-    const ms   = data.elapsed_ms ?? null;
+    const data = await apiCompile(code, action);
+    const ok = Boolean(data.ok);
+    const ms = data.elapsed_ms ?? null;
 
     setPipe(action, ok ? 's-ok' : 's-err');
-    setStatus(ok ? `${action} OK` : `Error en ${action}`, ok ? 'ok' : 'err');
+    setStatus(ok ? `${action} completado` : `Error en ${action}`, ok ? 'ok' : 'err');
     setElapsed(ms);
 
-    // Dispatch to the right renderer
     dispatchResult(action, tabId, data, ok, ms);
 
-    // Collect errors
     if (!ok) {
-      const errMsg = [data.error, data.stderr].filter(Boolean).join('\n').trim()
-                  || data.stdout || 'Error desconocido';
+      const errMsg = [data.error, data.stderr].filter(Boolean).join('\n').trim() || data.stdout || 'Error desconocido';
       addError(action, errMsg);
     }
-
   } catch (err) {
     setPipe(action, 's-err');
     setStatus('Error de conexión', 'err');
@@ -552,20 +799,12 @@ function dispatchResult(action, tabId, data, ok, ms) {
   const stdout = data.stdout || '';
   const stderr = data.stderr || '';
   const errMsg = data.error  || '';
-
-  // Helper: show raw text in a pre panel
-  function showPre(preId, hdrId, label, content, extra) {
-    showResult(tabId || 'check');
-    const hdr = $(hdrId); if (hdr) hdr.innerHTML = makeHdr(ok, label, ms) + (extra||'');
-    const pre = $(preId); if (pre) pre.textContent = content || (ok ? '(sin salida)' : stderr || errMsg);
-  }
+  const fallback = stderr || errMsg || stdout;
 
   if (action === 'check') {
     showResult('check');
-    const hdr = $('hdr-check');
-    if (hdr) hdr.innerHTML = makeHdr(ok, 'Análisis semántico', ms);
-    const pre = $('pre-check');
-    if (pre) pre.textContent = stdout || (ok ? 'Análisis léxico, sintáctico y semántico exitoso.' : stderr || errMsg);
+    $('hdr-check').innerHTML = makeHdr(ok, 'Análisis semántico', ms);
+    $('pre-check').textContent = stdout || (ok ? 'Análisis léxico, sintáctico y semántico exitoso.' : fallback);
   }
 
   else if (action === 'tokens') {
@@ -575,81 +814,62 @@ function dispatchResult(action, tabId, data, ok, ms) {
       renderTokens(stdout);
     } else {
       $('tok-chips').classList.add('hidden');
+      $('tok-table-wrap').classList.add('hidden');
       const pre = $('pre-tokens');
       pre.classList.remove('hidden');
-      pre.textContent = stderr || errMsg || stdout;
+      pre.textContent = fallback;
     }
   }
 
   else if (action === 'ast' || action === 'opt_ast') {
-    const tid = action === 'opt_ast' ? 'ast' : 'ast';
-    showResult(tid);
-    $('hdr-ast').innerHTML = makeHdr(ok, action === 'opt_ast' ? 'AST optimizado' : 'Árbol de Sintaxis Abstracta (AST)', ms);
-    const pre = $('pre-ast');
-    if (ok && stdout.trim()) pre.innerHTML = colorizeAST(stdout);
-    else pre.textContent = stderr || errMsg || stdout;
+    showResult('ast');
+    const label = action === 'opt_ast' ? 'AST optimizado' : 'Árbol de Sintaxis Abstracta';
+    $('hdr-ast').innerHTML = makeHdr(ok, label, ms);
+    if (ok && stdout.trim()) {
+      _astRaw = stdout;
+      if (_astView === 'tree') renderASTTree(stdout);
+      else renderASTRaw(stdout);
+    } else {
+      $('ast-tree-wrap').classList.add('hidden');
+      const pre = $('pre-ast');
+      pre.classList.remove('hidden');
+      pre.textContent = fallback;
+    }
   }
 
   else if (action === 'trace') {
     showResult('trace');
     $('hdr-trace').innerHTML = makeHdr(ok, 'Traza educativa', ms);
-    if (ok && stdout.trim()) renderTrace(stdout);
-    else {
+    if (ok && stdout.trim()) {
+      renderTrace(stdout);
+    } else {
       const view = $('trace-view');
       view.innerHTML = '';
       const pre = document.createElement('pre');
-      pre.className = 'code-pre'; pre.style.flex='1';
-      pre.textContent = stderr || errMsg || stdout;
+      pre.className = 'code-pre'; pre.style.flex = '1';
+      pre.textContent = fallback;
       view.appendChild(pre);
     }
   }
 
-  else if (action === 'opt_report') {
-    showResult('opt');
-    $('hdr-opt').innerHTML = makeHdr(ok, 'Reporte de optimizaciones', ms);
-    if (ok && stdout.trim()) renderOpt(stdout);
-    else {
-      const view = $('opt-view');
-      view.innerHTML = '';
-      const pre = document.createElement('pre');
-      pre.className = 'code-pre'; pre.style.flex='1';
-      pre.textContent = stderr || errMsg || stdout;
-      view.appendChild(pre);
-    }
-  }
-
-  else if (action === 'asm') {
+  else if (action === 'asm' || action === 'asm_no_opt') {
     showResult('asm');
     const asmRaw = data.asm || stdout;
-    const lines  = asmRaw.split('\n').filter(l=>l.trim()).length;
-    $('hdr-asm').innerHTML = makeHdr(ok, 'Ensamblador x86 (optimizado)', ms)
-      + `<span class="ms-label">${lines} líneas</span>`;
-    const pre = $('pre-asm');
-    if (ok && asmRaw.trim()) pre.innerHTML = colorizeASM(asmRaw);
-    else pre.textContent = stderr || errMsg;
-  }
-
-  else if (action === 'asm_no_opt') {
-    showResult('noopt');
-    const asmRaw = data.asm || stdout;
-    const lines  = asmRaw.split('\n').filter(l=>l.trim()).length;
-    $('hdr-noopt').innerHTML = makeHdr(ok, 'Ensamblador x86 (sin optimizar)', ms)
-      + `<span class="ms-label">${lines} líneas</span>`;
-    const pre = $('pre-noopt');
-    if (ok && asmRaw.trim()) pre.innerHTML = colorizeASM(asmRaw);
-    else pre.textContent = stderr || errMsg;
+    const lines  = asmRaw.split('\n').filter(l => l.trim()).length;
+    const label  = action === 'asm' ? 'Ensamblador x86 (optimizado)' : 'Ensamblador x86 (sin optimizar)';
+    $('hdr-asm').innerHTML = makeHdr(ok, label, ms) + `<span class="ms-label">${lines} líneas</span>`;
+    if (ok && asmRaw.trim()) $('pre-asm').innerHTML = colorizeASM(asmRaw);
+    else $('pre-asm').textContent = fallback;
   }
 
   else if (action === 'run') {
     showResult('run');
-    $('hdr-run').innerHTML = makeHdr(ok, 'Ejecución del programa', ms);
-    const pre = $('pre-run');
-    pre.textContent = stdout || (ok ? '(sin salida)' : stderr || errMsg);
-
-    // If ASM was also generated, populate that tab too (silently)
+    $('hdr-run').innerHTML = makeHdr(ok, 'Salida del programa', ms);
+    $('pre-run').textContent = stdout || (ok ? '(sin salida)' : fallback);
+    // silently fill ASM tab too
     if (data.asm) {
       showResult('asm');
-      const lines = data.asm.split('\n').filter(l=>l.trim()).length;
+      const lines = data.asm.split('\n').filter(l => l.trim()).length;
       $('hdr-asm').innerHTML = makeHdr(true, 'Ensamblador x86 (generado en ejecución)', null)
         + `<span class="ms-label">${lines} líneas</span>`;
       $('pre-asm').innerHTML = colorizeASM(data.asm);
@@ -657,34 +877,32 @@ function dispatchResult(action, tabId, data, ok, ms) {
   }
 }
 
-// ── PIPELINE BUTTON CLICKS ────────────────────────────────────
-document.querySelectorAll('.ps').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const action = btn.dataset.action;
-    const tab    = btn.dataset.tab;
-    runAction(action, tab);
-  });
-});
+// ══════════════════════════════════════════════════════════════
+// ── EVENT LISTENERS ───────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
 
-// ── TOPBAR: SAMPLE / RUN / CLEAR / COPY ──────────────────────
 $('loadSampleBtn').addEventListener('click', () => {
   codeEditor.value = SAMPLE;
-  updateLines();
-  updateCursor();
+  updateLines(); updateCursor();
   setStatus('Ejemplo cargado', 'ok');
-  setTimeout(() => setStatus('Listo'), 2000);
+  setTimeout(() => setStatus('Listo — selecciona una pestaña para ejecutar'), 2000);
 });
 
-mainRunBtn.addEventListener('click', () => runAction('run', 'run'));
+mainRunBtn.addEventListener('click', () => {
+  showTab('run');
+  runAction('run', 'run');
+});
 
 $('btnClear').addEventListener('click', clearAllResults);
 
 $('btnCopy').addEventListener('click', () => {
   const activePanel = document.querySelector('.panel.active');
   if (!activePanel) return;
-  const pre = activePanel.querySelector('pre');
-  const text = pre ? pre.textContent : '';
-  if (!text) return;
+  // Try to get text from visible pre first
+  const visiblePre = Array.from(activePanel.querySelectorAll('pre'))
+    .find(p => !p.closest('.hidden'));
+  const text = visiblePre ? visiblePre.textContent : '';
+  if (!text.trim()) return;
   navigator.clipboard.writeText(text).then(() => {
     const btn = $('btnCopy');
     btn.textContent = '✓';
@@ -692,23 +910,17 @@ $('btnCopy').addEventListener('click', () => {
   });
 });
 
-// ── EDITOR: LINE NUMBERS + CURSOR ────────────────────────────
+// ── EDITOR ────────────────────────────────────────────────────
 function updateLines() {
   const n = (codeEditor.value.match(/\n/g) || []).length + 1;
-  lineNums.textContent = Array.from({length:n},(_,i)=>i+1).join('\n');
+  lineNums.textContent = Array.from({ length: n }, (_, i) => i + 1).join('\n');
 }
-
-function syncLinesScroll() {
-  lineNums.scrollTop = codeEditor.scrollTop;
-}
-
+function syncLinesScroll() { lineNums.scrollTop = codeEditor.scrollTop; }
 function updateCursor() {
   const text = codeEditor.value;
   const pos  = codeEditor.selectionStart;
   const before = text.slice(0, pos).split('\n');
-  const line = before.length;
-  const col  = before[before.length-1].length + 1;
-  cursorPos.textContent = `Línea ${line}, Col ${col}`;
+  cursorPos.textContent = `Línea ${before.length}, Col ${before[before.length - 1].length + 1}`;
   charCount.textContent = `${text.length} chars`;
 }
 
@@ -719,18 +931,16 @@ codeEditor.addEventListener('keyup',  updateCursor);
 codeEditor.addEventListener('keydown', e => {
   if (e.key === 'Tab') {
     e.preventDefault();
-    const s = codeEditor.selectionStart;
-    const ee = codeEditor.selectionEnd;
-    codeEditor.value = codeEditor.value.slice(0,s) + '    ' + codeEditor.value.slice(ee);
+    const s = codeEditor.selectionStart, ee = codeEditor.selectionEnd;
+    codeEditor.value = codeEditor.value.slice(0, s) + '    ' + codeEditor.value.slice(ee);
     codeEditor.selectionStart = codeEditor.selectionEnd = s + 4;
     updateLines();
   }
 });
 
-// ── RESIZE HANDLE ─────────────────────────────────────────────
-(function() {
-  const handle = $('resizer');
-  const left   = $('paneEditor');
+// ── RESIZER ───────────────────────────────────────────────────
+(function () {
+  const handle = $('resizer'), left = $('paneEditor');
   let drag = false, startX = 0, startW = 0;
   handle.addEventListener('mousedown', e => {
     drag = true; startX = e.clientX; startW = left.offsetWidth;
@@ -740,35 +950,31 @@ codeEditor.addEventListener('keydown', e => {
   });
   document.addEventListener('mousemove', e => {
     if (!drag) return;
-    const newW = Math.max(240, Math.min(startW + e.clientX - startX, window.innerWidth - 300));
-    left.style.width = newW + 'px';
+    left.style.width = Math.max(240, Math.min(startW + e.clientX - startX, window.innerWidth - 300)) + 'px';
   });
   document.addEventListener('mouseup', () => {
     if (!drag) return;
-    drag = false;
-    handle.classList.remove('drag');
+    drag = false; handle.classList.remove('drag');
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
   });
 })();
 
-// ── HEALTH CHECK ──────────────────────────────────────────────
-(async function checkHealth() {
+// ── HEALTH CHECK ─────────────────────────────────────────────
+(async function () {
   try {
-    const res  = await fetch('/api/health');
-    const data = await res.json();
-    const dot  = $('healthDot');
+    const data = await (await fetch('/api/health')).json();
+    const dot = $('healthDot');
     dot.className = `health-dot ${data.ok && data.exists ? 'ok' : 'fail'}`;
-    dot.title = data.exists
-      ? `Compilador listo: ${data.compiler}`
-      : `Compilador no encontrado: ${data.compiler}`;
+    dot.title = data.exists ? `Compilador listo: ${data.compiler}` : `No encontrado: ${data.compiler}`;
   } catch {
     $('healthDot').className = 'health-dot fail';
     $('healthDot').title = 'Servidor no disponible';
   }
 })();
 
-// ── INIT ──────────────────────────────────────────────────────
+// ── INIT ─────────────────────────────────────────────────────
 codeEditor.value = SAMPLE;
 updateLines();
 updateCursor();
+showTab('run'); // start on the Run tab
